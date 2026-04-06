@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+
+<suite name="Opencart_basic" verbose="5" thread-count="15" parallel="tests">
+
+    <listeners>
+        <listener class-name="listeners.TestAllureListener"></listener>
+        <listener class-name="com.aventstack.chaintest.plugins.ChainTestListener"></listener>
+    </listeners>
+
+    <test name="Accounts Page Test Chrome">
+        <parameter name="browser" value="chrome"></parameter>
+        <classes>
+            <class name="tests.AccountsPageTest" />
+        </classes>
+    </test>
+
+
+    <test name="Accounts Page Test Firefox">
+        <parameter name="browser" value="firefox"></parameter>
+        <classes>
+            <class name="tests.AccountsPageTest" />
+        </classes>
+    </test>
+
+    <test name="Accounts Page Test Edge">
+        <parameter name="browser" value="edge"></parameter>
+        <classes>
+            <class name="tests.AccountsPageTest" />
+        </classes>
+    </test>
+
+
+
+
+
+
+    <test name="Login Page Test Chrome">
+        <parameter name="browser" value="chrome"></parameter>
+        <classes>
+            <class name="tests.LoginPageTest" />
+        </classes>
+    </test>
+
+    <test name="Login Page Test Firefox">
+        <parameter name="browser" value="firefox"></parameter>
+        <classes>
+            <class name="tests.LoginPageTest" />
+        </classes>
+    </test>
+
+    <test name="Login Page Test Edge">
+        <parameter name="browser" value="edge"></parameter>
+        <classes>
+            <class name="tests.LoginPageTest" />
+        </classes>
+    </test>
+
+
+
+
+
+
+
+
+
+
+    <test name="Product Information Page Test Chrome">
+        <parameter name="browser" value="chrome"></parameter>
+        <classes>
+            <class name="tests.ProductInformationPageTest" />
+        </classes>
+    </test>
+
+    <test name="Product Information Page Test Firefox">
+        <parameter name="browser" value="firefox"></parameter>
+        <classes>
+            <class name="tests.ProductInformationPageTest" />
+        </classes>
+    </test>
+
+    <test name="Product Information Page Test Edge">
+        <parameter name="browser" value="edge"></parameter>
+        <classes>
+            <class name="tests.ProductInformationPageTest" />
+        </classes>
+    </test>
+
+
+
+
+
+
+
+
+
+
+    <test name="Registration Page Test Chrome">
+        <parameter name="browser" value="chrome"></parameter>
+        <classes>
+            <class name="tests.RegistrationPageTest" />
+        </classes>
+    </test>
+
+    <test name="Registration Page Test Firefox">
+        <parameter name="browser" value="firefox"></parameter>
+        <classes>
+            <class name="tests.RegistrationPageTest" />
+        </classes>
+    </test>
+
+    <test name="Registration Page Test Edge">
+        <parameter name="browser" value="edge"></parameter>
+        <classes>
+            <class name="tests.RegistrationPageTest" />
+        </classes>
+    </test>
+
+
+
+
+
+
+
+
+    <test name="Search Results Page Test Chrome">
+        <parameter name="browser" value="chrome"></parameter>
+        <classes>
+            <class name="tests.SearchResultsPageTest" />
+        </classes>
+    </test>
+
+    <test name="Search Results Page Test Firefox">
+        <parameter name="browser" value="firefox"></parameter>
+        <classes>
+            <class name="tests.SearchResultsPageTest" />
+        </classes>
+    </test>
+
+    <test name="Search Results Page Test Edge">
+        <parameter name="browser" value="edge"></parameter>
+        <classes>
+            <class name="tests.SearchResultsPageTest" />
+        </classes>
+    </test>
+
+
+
+
+
+</suite>
