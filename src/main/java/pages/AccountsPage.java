@@ -65,13 +65,19 @@ public class AccountsPage {
     }
 
 
+    // FIX: StaleElementReferenceException was occurring on Edge browser.
+    // After form submission, the page navigates to Your Account Has Been Created page.
+    // Edge is slower in committing the DOM so by the time .isDisplayed() was called on the
+    // returned WebElement, the DOM had already been rebuilt making the reference stale.
+    // waitForVisibilityOfElement internally uses ExpectedConditions.visibilityOfElementLocated
+    // which already confirms visibility before returning - no need to call .isDisplayed() again.
+    // Retry analyzer was retrying the test but marking attempts as SKIPPED in Allure since
+    // retry is for environment flakiness, not code bugs. Same broken code = same failure every time.
+
     public boolean validateAccountCreation() {
-        if (elementUtil.waitForVisibilityOfElement(accountCreatedHeader, DEFAULT_MEDIUM_WAIT).isDisplayed()) {
-            return true;
-        } else {
-            return false;
-        }
+        return elementUtil.waitForVisibilityOfElement(accountCreatedHeader, DEFAULT_MEDIUM_WAIT) != null;
     }
+
 
     public UserComponent navigateToUserDropDown() {
 

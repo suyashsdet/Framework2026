@@ -6,6 +6,7 @@
     <listeners>
         <listener class-name="listeners.TestAllureListener"></listener>
         <listener class-name="com.aventstack.chaintest.plugins.ChainTestListener"></listener>
+        <listener class-name="listeners.AnnotationTransformer"></listener>
     </listeners>
 
     <test name="Accounts Page Test Chrome">
