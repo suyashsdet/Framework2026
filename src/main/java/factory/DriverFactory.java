@@ -15,6 +15,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Properties;
 
 public class DriverFactory {
@@ -56,6 +57,11 @@ public class DriverFactory {
         }
         getDriver().manage().window().maximize();
         getDriver().manage().deleteAllCookies();
+        // Page load timeout — if the URL takes longer than 60 seconds
+        // to load, Selenium throws TimeoutException immediately instead
+        // of hanging for the default 300 seconds. This prevents tests
+        // from blocking the entire parallel suite on a slow network.
+        getDriver().manage().timeouts().pageLoadTimeout(Duration.ofSeconds(60));
         getDriver().get(prop.getProperty("url"));
         return getDriver();
     }

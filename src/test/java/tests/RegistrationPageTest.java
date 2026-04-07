@@ -17,11 +17,15 @@ public class RegistrationPageTest extends BaseTest {
     }
     @AfterMethod(alwaysRun = true)
     public void resetRegistrationPage() {
-        userComponent =registrationPage.navigateToUserDropDown();
-        logoutPage= userComponent.navigateToLogoutPage();
-        homePage=logoutPage.clickOnContinue();
-        userComponent =homePage.navigateToUserDropDown();
-        registrationPage= userComponent.navigateToRegistrationPage();
+        // null check prevents NullPointerException when @BeforeClass
+        // setup failed (e.g. browser timeout) and registrationPage
+        // was never initialised
+        if (registrationPage == null) return;
+        userComponent = registrationPage.navigateToUserDropDown();
+        logoutPage = userComponent.navigateToLogoutPage();
+        homePage = logoutPage.clickOnContinue();
+        userComponent = homePage.navigateToUserDropDown();
+        registrationPage = userComponent.navigateToRegistrationPage();
     }
 
     @DataProvider(name = "registrationData")
