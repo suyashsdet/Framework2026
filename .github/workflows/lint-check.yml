@@ -1,20 +1,70 @@
 # ============================================================
 # Workflow  : Lint Check - Line Length
 # Project   : Framework2026
-# Purpose   : Ensures every Java source file in the project
-#             has no line longer than 120 characters.
-#             This keeps the code readable across all editors,
-#             code-review tools, and CI log viewers.
-# Triggered : On every push and pull-request to any branch.
+# Author    : Suyash
+# ============================================================
+#
+# WHAT THIS WORKFLOW DOES:
+#   Scans every Java source file (.java) in the project and
+#   checks that no single line exceeds 120 characters.
+#
+# WHY 120 CHARACTERS?
+#   - Keeps code readable in split-screen editors (IntelliJ,
+#     VS Code) without horizontal scrolling.
+#   - Makes code review easier in GitHub PR diff view.
+#   - Follows widely accepted Java coding standards.
+#
+# WHAT IT CHECKS:
+#   - All *.java files inside src/
+#   - Skips generated/compiled files in target/
+#   - Skips version control metadata in .git/
+#
+# WHAT HAPPENS WHEN IT FAILS:
+#   - The exact FILE NAME is printed in the log
+#   - The exact LINE NUMBER is printed in the log
+#   - The actual CHARACTER COUNT is shown so you know how
+#     many characters to reduce
+#   - A GitHub inline annotation appears directly on the
+#     offending line in the PR diff view (red marker)
+#   - The job exits with code 1 → PR is blocked (red ✗)
+#   - ALL violations are reported at once, not just the first
+#     one, so you can fix everything in a single pass
+#
+# WHAT HAPPENS WHEN IT PASSES:
+#   - A success summary is printed listing how many files
+#     were scanned and confirming zero violations
+#   - The job exits with code 0 → PR check goes green (✓)
+#
+# WHEN DOES IT RUN?
+#   - On every git push to any branch
+#   - On every pull request opened or updated on any branch
+#
+# HOW TO FIX A VIOLATION:
+#   1. Look at the log output: it tells you FILE + LINE + CHARS
+#   2. Open that file in IntelliJ
+#   3. Break the long line using one of these techniques:
+#      - Split method parameters across multiple lines
+#      - Extract a long expression into a named variable
+#      - Break a method chain at the dot (.) onto the next line
+#   4. Push again — the workflow will re-run automatically
 # ============================================================
 
 name: Lint Check - Line Length
 
 # -----------------------------------------------------------------
 # TRIGGERS
-# Runs automatically on:
-#   - push       : whenever code is pushed to any branch
-#   - pull_request: whenever a PR is opened / updated on any branch
+# This workflow runs automatically in two situations:
+#
+#   push:
+#     Fires whenever you run "git push" to any branch.
+#     Catches lint issues immediately after every commit.
+#
+#   pull_request:
+#     Fires whenever a PR is opened, updated, or a new commit
+#     is pushed to an open PR. Blocks merging if lint fails.
+#
+#   "**" means ALL branches are covered — main, dev, feature
+#   branches, hotfix branches, everything.
 # -----------------------------------------------------------------
 on:
   push:
@@ -25,57 +75,115 @@ on:
 jobs:
   lint:
     name: Java Line-Length Lint (max 120 chars)
-    runs-on: ubuntu-latest  # Uses the latest Ubuntu runner provided by GitHub
+
+    # ubuntu-latest = a fresh GitHub-hosted Linux virtual machine.
+    # It is spun up just for this job and discarded after it finishes.
+    runs-on: ubuntu-latest
 
     steps:
-      # -------------------------------------------------------
-      # STEP 1 - Checkout
-      # Downloads the repository code onto the runner so the
-      # subsequent steps can access all project files.
-      # -------------------------------------------------------
+
+      # -----------------------------------------------------------
+      # STEP 1 — CHECKOUT
+      # -----------------------------------------------------------
+      # The runner (Linux VM) starts with an empty workspace.
+      # This step uses the official GitHub "checkout" action to
+      # clone your repository onto the runner so the next step
+      # can actually read your Java files.
+      # "v4" is the latest stable version of the checkout action.
+      # -----------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # -------------------------------------------------------
-      # STEP 2 - Line-length check
-      # Scans every *.java file under the project (excluding
-      # generated/compiled output in target/ and .git/).
+      # -----------------------------------------------------------
+      # STEP 2 — LINE LENGTH SCAN
+      # -----------------------------------------------------------
+      # This is the core lint step. Here is exactly what it does:
       #
-      # For each file:
-      #   - Reads line by line
-      #   - Measures the character length of each line
-      #   - If length > 120, emits a GitHub error annotation
-      #     that shows up inline in the PR diff view:
-      #       ::error file=<path>,line=<n>::<message>
-      #   - Sets FAILED=1 so the job exits with a non-zero
-      #     code after scanning all files (not just the first
-      #     violation), giving you the full list at once.
+      # 1. FIND all .java files:
+      #    Uses the "find" command to locate every *.java file
+      #    recursively under the project root.
+      #    Excludes:
+      #      .git/    → version control internals, not your code
+      #      target/  → Maven compiled output, not your source
       #
-      # Exit behaviour:
-      #   - exit 1  → job fails, PR is blocked (red ✗)
-      #   - exit 0  → job passes (green ✓)
-      # -------------------------------------------------------
+      # 2. READ each file line by line:
+      #    "IFS= read -r" reads each line exactly as written,
+      #    preserving all spaces and tab characters so the
+      #    character count is accurate.
+      #    "|| [ -n "$line" ]" ensures the last line is checked
+      #    even if the file does not end with a newline character.
+      #
+      # 3. MEASURE each line:
+      #    "${#line}" is a bash expression that returns the number
+      #    of characters in the variable $line.
+      #    If that count is greater than 120, it is a violation.
+      #
+      # 4. REPORT violations with full context:
+      #    Each violation prints three things to the log:
+      #      - FILE PATH  : exactly which file has the problem
+      #      - LINE NUMBER: exactly which line to go fix
+      #      - CHAR COUNT : how many characters the line has
+      #                     (so you know how much to shorten it)
+      #    It also emits a "::error" GitHub annotation which
+      #    places a red marker directly on that line in the
+      #    PR diff view — no need to hunt through the log.
+      #
+      # 5. COLLECT all violations before failing:
+      #    FAILED=1 is set on each violation but the script does
+      #    NOT exit immediately. It finishes scanning every file
+      #    first. This means you get the complete list of all
+      #    violations in one run instead of fixing one at a time.
+      #
+      # 6. PRINT a summary:
+      #    After scanning, prints either:
+      #      ❌ with the total violation count → job fails
+      #      ✅ with the total files scanned  → job passes
+      # -----------------------------------------------------------
       - name: Check line length (max 120 characters)
         run: |
           FAILED=0
+          VIOLATION_COUNT=0
+          FILE_COUNT=0
+
+          echo "----------------------------------------------------"
+          echo "  Scanning all .java files for lines > 120 chars..."
+          echo "----------------------------------------------------"
+
           while IFS= read -r file; do
+            FILE_COUNT=$((FILE_COUNT + 1))
             LINE_NUM=0
             while IFS= read -r line || [ -n "$line" ]; do
               LINE_NUM=$((LINE_NUM + 1))
               if [ ${#line} -gt 120 ]; then
+                VIOLATION_COUNT=$((VIOLATION_COUNT + 1))
                 echo "::error file=$file,line=$LINE_NUM::Line exceeds 120 characters (${#line} chars)"
-                FAILED=1
+                echo "  ❌ FILE : $file"
+                echo "     LINE : $LINE_NUM"
+                echo "     CHARS: ${#line} (exceeds limit by $((${#line} - 120)) characters)"
+                echo ""
               fi
             done < "$file"
           done < <(find . -type f -name "*.java" \
             ! -path "./.git/*" \
             ! -path "./target/*")
 
-          if [ $FAILED -ne 0 ]; then
+          echo "----------------------------------------------------"
+          if [ $FAILED -ne 0 ] || [ $VIOLATION_COUNT -gt 0 ]; then
+            echo "  ❌ LINT FAILED"
+            echo "  Total files scanned : $FILE_COUNT"
+            echo "  Total violations    : $VIOLATION_COUNT"
             echo ""
-            echo "❌ Lint failed: one or more lines exceed 120 characters."
-            echo "   Fix the lines flagged above and push again."
+            echo "  HOW TO FIX:"
+            echo "  Look at each FILE + LINE listed above."
+            echo "  Break the long line by splitting method params,"
+            echo "  extracting variables, or wrapping method chains."
+            echo "  Then push again — this check will re-run."
+            echo "----------------------------------------------------"
             exit 1
           fi
 
-          echo "✅ All Java lines are within 120 characters."
+          echo "  ✅ LINT PASSED"
+          echo "  Total files scanned : $FILE_COUNT"
+          echo "  Total violations    : 0"
+          echo "  All lines are within the 120 character limit."
+          echo "----------------------------------------------------"
