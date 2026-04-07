@@ -27,8 +27,12 @@ public class OptionsFactory {
 
     public ChromeOptions getChromeOptions() {
         ChromeOptions chromeOptions = new ChromeOptions();
+        // --no-sandbox and --disable-dev-shm-usage are required on
+        // GitHub Actions Linux runners to prevent Chrome from crashing
+        chromeOptions.addArguments("--no-sandbox");
+        chromeOptions.addArguments("--disable-dev-shm-usage");
         if (Boolean.parseBoolean(resolve("headless"))) {
-            chromeOptions.addArguments("--headless");
+            chromeOptions.addArguments("--headless=new");
         }
         if (Boolean.parseBoolean(resolve("incognito"))) {
             chromeOptions.addArguments("--incognito");
@@ -39,7 +43,7 @@ public class OptionsFactory {
     public FirefoxOptions getFirefoxOptions() {
         FirefoxOptions firefoxOptions = new FirefoxOptions();
         if (Boolean.parseBoolean(resolve("headless"))) {
-            firefoxOptions.addArguments("-headless");
+            firefoxOptions.addArguments("--headless");
         }
         if (Boolean.parseBoolean(resolve("incognito"))) {
             firefoxOptions.addArguments("-private");
@@ -49,6 +53,10 @@ public class OptionsFactory {
 
     public EdgeOptions getEdgeOptions() {
         EdgeOptions edgeOptions = new EdgeOptions();
+        // --no-sandbox and --disable-dev-shm-usage are required on
+        // GitHub Actions Linux runners to prevent Edge from crashing
+        edgeOptions.addArguments("--no-sandbox");
+        edgeOptions.addArguments("--disable-dev-shm-usage");
         if (Boolean.parseBoolean(resolve("headless"))) {
             edgeOptions.addArguments("--headless=new");
         }

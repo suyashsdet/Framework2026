@@ -53,13 +53,15 @@ public class BaseTest {
 
     @AfterMethod(alwaysRun = true)
     public void attachScreenshot(ITestResult result){
-        if(!result.isSuccess()){
+        if(!result.isSuccess() && DriverFactory.getDriver() != null){
             ChainTestListener.embed(DriverFactory.getScreenshotFile(), "image/png");
         }
     }
 
     @AfterTest
     public void tearDown(){
-        driver.quit();
+        if(DriverFactory.getDriver() != null){
+            driver.quit();
+        }
     }
 }
