@@ -307,14 +307,6 @@ jobs:
           path: target/allure-results/
           retention-days: 1
 
-      - name: Upload ChainTest results for ${{ matrix.browser }}
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: chaintest-results-${{ matrix.browser }}
-          path: target/chaintest/
-          retention-days: 1
-
       - name: Upload surefire results for ${{ matrix.browser }}
         if: always()
         uses: actions/upload-artifact@v4
@@ -360,19 +352,6 @@ jobs:
       # generates one report showing Chrome, Firefox, and Edge
       # results together with browser labels on each test.
       # -----------------------------------------------------------
-      # -----------------------------------------------------------
-      # WHY SEPARATE SUBFOLDERS FOR SUREFIRE:
-      # Surefire names XML files after the test class:
-      #   TEST-tests.LoginPageTest.xml
-      #   TEST-tests.AccountsPageTest.xml
-      # Chrome, Firefox and Edge all produce files with the
-      # EXACT same names. If all 3 download into the same folder,
-      # Edge overwrites Firefox which overwrites Chrome — you
-      # end up with only 25 tests (1 browser) instead of 75.
-      #
-      # Allure uses UUID filenames so it is safe to merge directly.
-      # -----------------------------------------------------------
-
       - name: Download Chrome Allure results
         uses: actions/download-artifact@v4
         with:
@@ -391,57 +370,23 @@ jobs:
           name: allure-results-edge
           path: target/allure-results/
 
-      - name: Download Chrome ChainTest results
-        uses: actions/download-artifact@v4
-        with:
-          name: chaintest-results-chrome
-          path: chaintest-chrome/
-
-      - name: Download Firefox ChainTest results
-        uses: actions/download-artifact@v4
-        with:
-          name: chaintest-results-firefox
-          path: chaintest-firefox/
-
-      - name: Download Edge ChainTest results
-        uses: actions/download-artifact@v4
-        with:
-          name: chaintest-results-edge
-          path: chaintest-edge/
-
-      - name: Merge ChainTest results from all browsers
-        run: |
-          mkdir -p target/chaintest
-          cp -r chaintest-chrome/. target/chaintest/ 2>/dev/null || true
-          cp -r chaintest-firefox/. target/chaintest/ 2>/dev/null || true
-          cp -r chaintest-edge/. target/chaintest/ 2>/dev/null || true
-
       - name: Download Chrome surefire results
         uses: actions/download-artifact@v4
         with:
           name: surefire-results-chrome
-          path: surefire-chrome/
+          path: target/surefire-reports/
 
       - name: Download Firefox surefire results
         uses: actions/download-artifact@v4
         with:
           name: surefire-results-firefox
-          path: surefire-firefox/
+          path: target/surefire-reports/
 
       - name: Download Edge surefire results
         uses: actions/download-artifact@v4
         with:
           name: surefire-results-edge
-          path: surefire-edge/
-
-      - name: Merge surefire results from all browsers
-        run: |
-          mkdir -p target/surefire-reports
-          cp -r surefire-chrome/. target/surefire-reports/
-          cp -r surefire-firefox/. target/surefire-reports/
-          cp -r surefire-edge/. target/surefire-reports/
-          echo "Total surefire XML files after merge:"
-          ls target/surefire-reports/*.xml 2>/dev/null | wc -l
+          path: target/surefire-reports/
 
       - name: Generate merged Allure report
         if: always()
@@ -450,9 +395,8 @@ jobs:
       - name: Prepare and upload GitHub Pages content
         if: always()
         run: |
-          mkdir -p reports/testng reports/chaintest reports/allure
+          mkdir -p reports/testng reports/allure
           cp -r target/surefire-reports/. reports/testng/ 2>/dev/null || true
-          cp -r target/chaintest/. reports/chaintest/ 2>/dev/null || true
           cp -r target/site/allure-maven-plugin/. reports/allure/ 2>/dev/null || true
           cat > reports/index.html << 'EOF'
           <!DOCTYPE html><html><head><title>Framework2026 Reports</title>
@@ -462,7 +406,6 @@ jobs:
           p{color:#666;margin:6px 0 0;font-size:14px}</style></head><body>
           <h1>Framework2026 — Test Reports (Chrome + Firefox + Edge merged)</h1>
           <div class="card"><a href="allure/index.html">📊 Allure Report</a><p>Merged results from all 3 browser VMs</p></div>
-          <div class="card"><a href="chaintest/Index.html">🔗 ChainTest Report</a><p>Dark theme report with screenshots</p></div>
           <div class="card"><a href="testng/index.html">✅ TestNG Report</a><p>Pass/fail per test with stack traces</p></div>
           </body></html>
           EOF
