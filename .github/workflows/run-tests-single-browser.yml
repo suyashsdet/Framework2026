@@ -350,6 +350,14 @@ jobs:
       # -----------------------------------------------------------
       # Uploads surefire reports from this shard separately.
       # -----------------------------------------------------------
+      - name: Upload ChainTest results for this shard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chaintest-results-shard-${{ matrix.shard }}
+          path: target/chaintest/
+          retention-days: 1
+
       - name: Upload surefire results for this shard
         if: always()
         uses: actions/upload-artifact@v4
@@ -394,6 +402,19 @@ jobs:
       # Both are placed into target/allure-results/ so Allure
       # sees all test results as if they ran on one machine.
       # -----------------------------------------------------------
+      # -----------------------------------------------------------
+      # WHY SEPARATE SUBFOLDERS FOR SUREFIRE:
+      # Surefire names XML files after the test class:
+      #   TEST-tests.LoginPageTest.xml
+      #   TEST-tests.AccountsPageTest.xml
+      # If both shards download into the same folder, shard 2
+      # overwrites shard 1 files with the same name — you lose
+      # 50% of results. That was the bug causing only 25 tests.
+      #
+      # Allure uses UUID filenames (abc123.json) so it is safe
+      # to merge directly into the same folder.
+      # -----------------------------------------------------------
+
       - name: Download Allure results from shard 1
         uses: actions/download-artifact@v4
         with:
@@ -406,17 +427,43 @@ jobs:
           name: allure-results-shard-2
           path: target/allure-results/
 
+      - name: Download ChainTest results from shard 1
+        uses: actions/download-artifact@v4
+        with:
+          name: chaintest-results-shard-1
+          path: chaintest-shard-1/
+
+      - name: Download ChainTest results from shard 2
+        uses: actions/download-artifact@v4
+        with:
+          name: chaintest-results-shard-2
+          path: chaintest-shard-2/
+
+      - name: Merge ChainTest results from all shards
+        run: |
+          mkdir -p target/chaintest
+          cp -r chaintest-shard-1/. target/chaintest/ 2>/dev/null || true
+          cp -r chaintest-shard-2/. target/chaintest/ 2>/dev/null || true
+
       - name: Download surefire results from shard 1
         uses: actions/download-artifact@v4
         with:
           name: surefire-results-shard-1
-          path: target/surefire-reports/
+          path: surefire-shard-1/
 
       - name: Download surefire results from shard 2
         uses: actions/download-artifact@v4
         with:
           name: surefire-results-shard-2
-          path: target/surefire-reports/
+          path: surefire-shard-2/
+
+      - name: Merge surefire results from all shards
+        run: |
+          mkdir -p target/surefire-reports
+          cp -r surefire-shard-1/. target/surefire-reports/
+          cp -r surefire-shard-2/. target/surefire-reports/
+          echo "Total surefire XML files after merge:"
+          ls target/surefire-reports/*.xml 2>/dev/null | wc -l
 
       # -----------------------------------------------------------
       # Generates the unified Allure HTML report from the merged
@@ -429,8 +476,9 @@ jobs:
       - name: Prepare and upload GitHub Pages content
         if: always()
         run: |
-          mkdir -p reports/testng reports/allure
+          mkdir -p reports/testng reports/chaintest reports/allure
           cp -r target/surefire-reports/. reports/testng/ 2>/dev/null || true
+          cp -r target/chaintest/. reports/chaintest/ 2>/dev/null || true
           cp -r target/site/allure-maven-plugin/. reports/allure/ 2>/dev/null || true
           cat > reports/index.html << 'EOF'
           <!DOCTYPE html><html><head><title>Framework2026 Reports</title>
@@ -440,6 +488,7 @@ jobs:
           p{color:#666;margin:6px 0 0;font-size:14px}</style></head><body>
           <h1>Framework2026 — Test Reports (Merged from 2 VMs)</h1>
           <div class="card"><a href="allure/index.html">📊 Allure Report</a><p>Merged results from all parallel VMs</p></div>
+          <div class="card"><a href="chaintest/Index.html">🔗 ChainTest Report</a><p>Dark theme report with screenshots</p></div>
           <div class="card"><a href="testng/index.html">✅ TestNG Report</a><p>Pass/fail per test with stack traces</p></div>
           </body></html>
           EOF
