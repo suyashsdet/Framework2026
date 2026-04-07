@@ -307,13 +307,14 @@ jobs:
           path: target/allure-results/
           retention-days: 1
 
-      - name: Upload ChainTest results for ${{ matrix.browser }}
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: chaintest-results-${{ matrix.browser }}
-          path: target/chaintest/
-          retention-days: 1
+      # -----------------------------------------------------------
+      # NOTE: ChainTest is NOT uploaded in matrix mode.
+      # ChainTest generates one single Index.html per run.
+      # It cannot be merged across browser VMs — Edge would
+      # overwrite Firefox which overwrites Chrome, losing
+      # results from 2 out of 3 browsers.
+      # ChainTest is only available in single VM mode.
+      # -----------------------------------------------------------
 
       - name: Upload surefire results for ${{ matrix.browser }}
         if: always()
@@ -391,31 +392,6 @@ jobs:
           name: allure-results-edge
           path: target/allure-results/
 
-      - name: Download Chrome ChainTest results
-        uses: actions/download-artifact@v4
-        with:
-          name: chaintest-results-chrome
-          path: chaintest-chrome/
-
-      - name: Download Firefox ChainTest results
-        uses: actions/download-artifact@v4
-        with:
-          name: chaintest-results-firefox
-          path: chaintest-firefox/
-
-      - name: Download Edge ChainTest results
-        uses: actions/download-artifact@v4
-        with:
-          name: chaintest-results-edge
-          path: chaintest-edge/
-
-      - name: Merge ChainTest results from all browsers
-        run: |
-          mkdir -p target/chaintest
-          cp -r chaintest-chrome/. target/chaintest/ 2>/dev/null || true
-          cp -r chaintest-firefox/. target/chaintest/ 2>/dev/null || true
-          cp -r chaintest-edge/. target/chaintest/ 2>/dev/null || true
-
       - name: Download Chrome surefire results
         uses: actions/download-artifact@v4
         with:
@@ -450,20 +426,35 @@ jobs:
       - name: Prepare and upload GitHub Pages content
         if: always()
         run: |
-          mkdir -p reports/testng reports/chaintest reports/allure
+          mkdir -p reports/testng reports/allure
           cp -r target/surefire-reports/. reports/testng/ 2>/dev/null || true
-          cp -r target/chaintest/. reports/chaintest/ 2>/dev/null || true
           cp -r target/site/allure-maven-plugin/. reports/allure/ 2>/dev/null || true
           cat > reports/index.html << 'EOF'
           <!DOCTYPE html><html><head><title>Framework2026 Reports</title>
-          <style>body{font-family:Arial,sans-serif;max-width:600px;margin:60px auto;background:#f5f5f5}
-          .card{background:white;border-radius:8px;padding:20px;margin:16px 0;box-shadow:0 2px 6px rgba(0,0,0,.1)}
-          a{color:#0066cc;font-size:18px;text-decoration:none;font-weight:bold}
-          p{color:#666;margin:6px 0 0;font-size:14px}</style></head><body>
-          <h1>Framework2026 — Test Reports (Chrome + Firefox + Edge merged)</h1>
-          <div class="card"><a href="allure/index.html">📊 Allure Report</a><p>Merged results from all 3 browser VMs</p></div>
-          <div class="card"><a href="chaintest/Index.html">🔗 ChainTest Report</a><p>Dark theme report with screenshots</p></div>
-          <div class="card"><a href="testng/index.html">✅ TestNG Report</a><p>Pass/fail per test with stack traces</p></div>
+          <style>
+            body{font-family:Arial,sans-serif;max-width:600px;margin:60px auto;background:#f5f5f5}
+            .card{background:white;border-radius:8px;padding:20px;margin:16px 0;box-shadow:0 2px 6px rgba(0,0,0,.1)}
+            a{color:#0066cc;font-size:18px;text-decoration:none;font-weight:bold}
+            p{color:#666;margin:6px 0 0;font-size:14px}
+            .notice{background:#fff8e1;border-left:4px solid #f59e0b;border-radius:8px;
+                    padding:16px 20px;margin:16px 0}
+            .notice-title{color:#b45309;font-weight:bold;font-size:15px}
+            .notice-text{color:#78350f;font-size:13px;margin:6px 0 0}
+          </style></head><body>
+          <h1>Framework2026 — Test Reports</h1>
+          <p style="color:#555;font-size:13px">Run mode: <strong>Parallel VM (Chrome + Firefox + Edge)</strong></p>
+          <div class="card"><a href="allure/index.html">📊 Allure Report</a><p>Merged results from all 3 browser VMs — Chrome, Firefox and Edge combined</p></div>
+          <div class="card"><a href="testng/index.html">✅ TestNG Report</a><p>Pass/fail per test method with stack traces</p></div>
+          <div class="notice">
+            <div class="notice-title">⚠️ ChainTest Report not available in Parallel VM mode</div>
+            <div class="notice-text">
+              ChainTest generates a single self-contained HTML file per test run.<br>
+              In parallel VM mode, Chrome, Firefox and Edge each produce their own<br>
+              separate HTML file and these cannot be merged — the last browser<br>
+              would overwrite the others, losing results from 2 out of 3 browsers.<br><br>
+              <strong>To get the ChainTest report, re-run with use_matrix = false.</strong>
+            </div>
+          </div>
           </body></html>
           EOF
 

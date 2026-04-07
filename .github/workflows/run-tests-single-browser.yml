@@ -348,15 +348,12 @@ jobs:
           retention-days: 1
 
       # -----------------------------------------------------------
-      # Uploads surefire reports from this shard separately.
+      # NOTE: ChainTest is NOT uploaded in matrix mode.
+      # ChainTest generates one single Index.html per run.
+      # It cannot be merged across VMs — last file would overwrite
+      # all others losing results from other shards.
+      # ChainTest is only available in single VM mode.
       # -----------------------------------------------------------
-      - name: Upload ChainTest results for this shard
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: chaintest-results-shard-${{ matrix.shard }}
-          path: target/chaintest/
-          retention-days: 1
 
       - name: Upload surefire results for this shard
         if: always()
@@ -427,24 +424,6 @@ jobs:
           name: allure-results-shard-2
           path: target/allure-results/
 
-      - name: Download ChainTest results from shard 1
-        uses: actions/download-artifact@v4
-        with:
-          name: chaintest-results-shard-1
-          path: chaintest-shard-1/
-
-      - name: Download ChainTest results from shard 2
-        uses: actions/download-artifact@v4
-        with:
-          name: chaintest-results-shard-2
-          path: chaintest-shard-2/
-
-      - name: Merge ChainTest results from all shards
-        run: |
-          mkdir -p target/chaintest
-          cp -r chaintest-shard-1/. target/chaintest/ 2>/dev/null || true
-          cp -r chaintest-shard-2/. target/chaintest/ 2>/dev/null || true
-
       - name: Download surefire results from shard 1
         uses: actions/download-artifact@v4
         with:
@@ -476,20 +455,35 @@ jobs:
       - name: Prepare and upload GitHub Pages content
         if: always()
         run: |
-          mkdir -p reports/testng reports/chaintest reports/allure
+          mkdir -p reports/testng reports/allure
           cp -r target/surefire-reports/. reports/testng/ 2>/dev/null || true
-          cp -r target/chaintest/. reports/chaintest/ 2>/dev/null || true
           cp -r target/site/allure-maven-plugin/. reports/allure/ 2>/dev/null || true
           cat > reports/index.html << 'EOF'
           <!DOCTYPE html><html><head><title>Framework2026 Reports</title>
-          <style>body{font-family:Arial,sans-serif;max-width:600px;margin:60px auto;background:#f5f5f5}
-          .card{background:white;border-radius:8px;padding:20px;margin:16px 0;box-shadow:0 2px 6px rgba(0,0,0,.1)}
-          a{color:#0066cc;font-size:18px;text-decoration:none;font-weight:bold}
-          p{color:#666;margin:6px 0 0;font-size:14px}</style></head><body>
-          <h1>Framework2026 — Test Reports (Merged from 2 VMs)</h1>
-          <div class="card"><a href="allure/index.html">📊 Allure Report</a><p>Merged results from all parallel VMs</p></div>
-          <div class="card"><a href="chaintest/Index.html">🔗 ChainTest Report</a><p>Dark theme report with screenshots</p></div>
-          <div class="card"><a href="testng/index.html">✅ TestNG Report</a><p>Pass/fail per test with stack traces</p></div>
+          <style>
+            body{font-family:Arial,sans-serif;max-width:600px;margin:60px auto;background:#f5f5f5}
+            .card{background:white;border-radius:8px;padding:20px;margin:16px 0;box-shadow:0 2px 6px rgba(0,0,0,.1)}
+            a{color:#0066cc;font-size:18px;text-decoration:none;font-weight:bold}
+            p{color:#666;margin:6px 0 0;font-size:14px}
+            .notice{background:#fff8e1;border-left:4px solid #f59e0b;border-radius:8px;
+                    padding:16px 20px;margin:16px 0}
+            .notice-title{color:#b45309;font-weight:bold;font-size:15px}
+            .notice-text{color:#78350f;font-size:13px;margin:6px 0 0}
+          </style></head><body>
+          <h1>Framework2026 — Test Reports</h1>
+          <p style="color:#555;font-size:13px">Run mode: <strong>Parallel VM (2 shards)</strong></p>
+          <div class="card"><a href="allure/index.html">📊 Allure Report</a><p>Merged results from all parallel VMs — all test classes combined</p></div>
+          <div class="card"><a href="testng/index.html">✅ TestNG Report</a><p>Pass/fail per test method with stack traces</p></div>
+          <div class="notice">
+            <div class="notice-title">⚠️ ChainTest Report not available in Parallel VM mode</div>
+            <div class="notice-text">
+              ChainTest generates a single self-contained HTML file per test run.<br>
+              In parallel VM mode, each VM produces its own separate HTML file<br>
+              and these cannot be merged — the last file would overwrite all others,<br>
+              losing results from the other shards.<br><br>
+              <strong>To get the ChainTest report, re-run with use_matrix = false.</strong>
+            </div>
+          </div>
           </body></html>
           EOF
 
