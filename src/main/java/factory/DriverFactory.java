@@ -31,7 +31,11 @@ public class DriverFactory {
 
 
 
-        String browser = prop.getProperty("browser");
+        // Check -Dbrowser system property first (set by GitHub Actions workflow).
+        // Falls back to browser value in the loaded config .properties file.
+        String browser = System.getProperty("browser") != null
+                ? System.getProperty("browser")
+                : prop.getProperty("browser");
         OptionsFactory optionsFactory = new OptionsFactory(prop);
 
 
