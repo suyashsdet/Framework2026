@@ -1,0 +1,81 @@
+# ============================================================
+# Workflow  : Lint Check - Line Length
+# Project   : Framework2026
+# Purpose   : Ensures every Java source file in the project
+#             has no line longer than 120 characters.
+#             This keeps the code readable across all editors,
+#             code-review tools, and CI log viewers.
+# Triggered : On every push and pull-request to any branch.
+# ============================================================
+
+name: Lint Check - Line Length
+
+# -----------------------------------------------------------------
+# TRIGGERS
+# Runs automatically on:
+#   - push       : whenever code is pushed to any branch
+#   - pull_request: whenever a PR is opened / updated on any branch
+# -----------------------------------------------------------------
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  lint:
+    name: Java Line-Length Lint (max 120 chars)
+    runs-on: ubuntu-latest  # Uses the latest Ubuntu runner provided by GitHub
+
+    steps:
+      # -------------------------------------------------------
+      # STEP 1 - Checkout
+      # Downloads the repository code onto the runner so the
+      # subsequent steps can access all project files.
+      # -------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -------------------------------------------------------
+      # STEP 2 - Line-length check
+      # Scans every *.java file under the project (excluding
+      # generated/compiled output in target/ and .git/).
+      #
+      # For each file:
+      #   - Reads line by line
+      #   - Measures the character length of each line
+      #   - If length > 120, emits a GitHub error annotation
+      #     that shows up inline in the PR diff view:
+      #       ::error file=<path>,line=<n>::<message>
+      #   - Sets FAILED=1 so the job exits with a non-zero
+      #     code after scanning all files (not just the first
+      #     violation), giving you the full list at once.
+      #
+      # Exit behaviour:
+      #   - exit 1  → job fails, PR is blocked (red ✗)
+      #   - exit 0  → job passes (green ✓)
+      # -------------------------------------------------------
+      - name: Check line length (max 120 characters)
+        run: |
+          FAILED=0
+          while IFS= read -r file; do
+            LINE_NUM=0
+            while IFS= read -r line || [ -n "$line" ]; do
+              LINE_NUM=$((LINE_NUM + 1))
+              if [ ${#line} -gt 120 ]; then
+                echo "::error file=$file,line=$LINE_NUM::Line exceeds 120 characters (${#line} chars)"
+                FAILED=1
+              fi
+            done < "$file"
+          done < <(find . -type f -name "*.java" \
+            ! -path "./.git/*" \
+            ! -path "./target/*")
+
+          if [ $FAILED -ne 0 ]; then
+            echo ""
+            echo "❌ Lint failed: one or more lines exceed 120 characters."
+            echo "   Fix the lines flagged above and push again."
+            exit 1
+          fi
+
+          echo "✅ All Java lines are within 120 characters."
