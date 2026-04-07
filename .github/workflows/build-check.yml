@@ -1,0 +1,171 @@
+# ============================================================
+# Workflow  : Build Check - Maven Compile
+# Project   : Framework2026
+# Author    : Suyash
+# ============================================================
+#
+# WHAT THIS WORKFLOW DOES:
+#   Runs "mvn compile" on every push and pull request to
+#   verify that all Java source files compile successfully
+#   without any errors.
+#
+# WHY IS THIS USEFUL?
+#   - Catches compilation errors BEFORE they reach the main
+#     branch. For example: missing imports, wrong method
+#     signatures, typos in class names etc.
+#   - Gives instant feedback to the developer — no need to
+#     open IntelliJ locally to check if the code compiles.
+#   - Acts as the first gate in your CI pipeline. If the
+#     code does not compile, there is no point running tests.
+#
+# WHAT DOES "mvn compile" DO?
+#   1. Reads your pom.xml to understand the project structure
+#   2. Downloads all declared dependencies from Maven Central
+#      (Selenium, TestNG, Allure, POI, OpenCSV etc.) if they
+#      are not already cached on the runner
+#   3. Compiles all .java files under:
+#        src/main/java  → your page objects, utilities, base
+#        src/test/java  → your test classes
+#   4. Outputs .class files into the target/ folder
+#   5. Exits with code 0 (success) or code 1 (failure)
+#
+# WHAT IT DOES NOT DO:
+#   - Does NOT run any tests (that is "mvn test")
+#   - Does NOT package the project into a JAR (that is "mvn package")
+#   - Does NOT deploy anything anywhere
+#
+# WHAT HAPPENS WHEN IT FAILS:
+#   - Maven prints the exact FILE and LINE where the
+#     compilation error occurred
+#   - The job exits with code 1 → PR is blocked (red ✗)
+#   - You fix the error locally, push again, and the
+#     workflow re-runs automatically
+#
+# WHAT HAPPENS WHEN IT PASSES:
+#   - Maven prints "BUILD SUCCESS" in the log
+#   - The job exits with code 0 → PR check goes green (✓)
+#   - Safe to proceed to the next step (e.g. running tests)
+#
+# WHEN DOES IT RUN?
+#   - On every git push to any branch
+#   - On every pull request opened or updated on any branch
+#
+# DEPENDENCY CACHING:
+#   Maven downloads dependencies from the internet on every
+#   run which is slow. This workflow caches the local Maven
+#   repository (~/.m2) so dependencies are only downloaded
+#   once and reused in all future runs — making the build
+#   significantly faster.
+# ============================================================
+
+name: Build Check - Maven Compile
+
+# -----------------------------------------------------------------
+# TRIGGERS
+# This workflow runs automatically in two situations:
+#
+#   push:
+#     Fires whenever you run "git push" to any branch.
+#     Catches compile errors immediately after every commit.
+#
+#   pull_request:
+#     Fires whenever a PR is opened or a new commit is pushed
+#     to an open PR. Blocks merging if the build fails.
+#
+#   "**" means ALL branches are covered — main, dev, feature
+#   branches, hotfix branches, everything.
+# -----------------------------------------------------------------
+on:
+  push:
+    branches: [ "**" ]
+  pull_request:
+    branches: [ "**" ]
+
+jobs:
+  build:
+    name: Maven Compile Check
+    # ubuntu-latest = a fresh GitHub-hosted Linux virtual machine.
+    # It is spun up just for this job and discarded after it finishes.
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # -----------------------------------------------------------
+      # STEP 1 — CHECKOUT
+      # -----------------------------------------------------------
+      # The runner (Linux VM) starts with an empty workspace.
+      # This step clones your repository onto the runner so
+      # Maven can find your pom.xml and all source files.
+      # "v4" is the latest stable version of the checkout action.
+      # -----------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------
+      # STEP 2 — SET UP JAVA
+      # -----------------------------------------------------------
+      # Installs Java on the runner. Your pom.xml is configured
+      # with Java 24 (source/target = 24) so we install the same
+      # version here to ensure the compile environment matches
+      # your local IntelliJ setup exactly.
+      #
+      # distribution: "temurin" → Eclipse Temurin is the most
+      #   widely used OpenJDK distribution on GitHub Actions.
+      # java-version: "24" → matches your pom.xml compiler config.
+      # -----------------------------------------------------------
+      - name: Set up Java 24
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "24"
+
+      # -----------------------------------------------------------
+      # STEP 3 — CACHE MAVEN DEPENDENCIES
+      # -----------------------------------------------------------
+      # Maven downloads all dependencies declared in pom.xml from
+      # the internet and stores them in ~/.m2/repository on the
+      # runner. Without caching, this happens on EVERY run which
+      # wastes time downloading the same JARs repeatedly.
+      #
+      # This step caches the ~/.m2/repository folder using the
+      # pom.xml as the cache key. This means:
+      #   - First run   : downloads everything, saves to cache
+      #   - Future runs : restores from cache instantly (no download)
+      #   - pom.xml changes: cache is invalidated and refreshed
+      #
+      # This can reduce build time from ~2-3 minutes to ~20 seconds.
+      # -----------------------------------------------------------
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      # -----------------------------------------------------------
+      # STEP 4 — MAVEN COMPILE
+      # -----------------------------------------------------------
+      # This is the core step. Runs "mvn compile" with these flags:
+      #
+      #   compile
+      #     The Maven lifecycle phase that compiles all .java files
+      #     under src/main/java and src/test/java into .class files.
+      #
+      #   -B (--batch-mode)
+      #     Runs Maven in non-interactive mode. Disables the
+      #     progress download bars which makes the log output
+      #     clean and easy to read in GitHub Actions.
+      #
+      #   -V (--show-version)
+      #     Prints the Maven and Java version at the start of the
+      #     log. Useful for debugging version mismatch issues.
+      #
+      # If compilation succeeds → "BUILD SUCCESS" in log → green ✓
+      # If compilation fails    → "BUILD FAILURE" in log → red ✗
+      #   Maven will also print the exact file and line number
+      #   of every compilation error so you know exactly what
+      #   to fix.
+      # -----------------------------------------------------------
+      - name: Run Maven Compile
+        run: mvn compile -B -V
