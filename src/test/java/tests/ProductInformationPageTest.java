@@ -59,7 +59,9 @@ public class ProductInformationPageTest extends BaseTest {
 
 
     @Test(dataProvider = "productData")
-    public void productInformationTestHashMap(String productName, HashMap<String, String> expectedProductInfo) throws InterruptedException {
+    public void productInformationTestHashMap(String productName,
+                                              HashMap<String, String> expectedProductInfo)
+            throws InterruptedException {
         searchResultsPage = accountsPage.doSearch(productName);
         productInformationPage = searchResultsPage.selectProductFromSearchResults(productName);
 
@@ -70,17 +72,22 @@ public class ProductInformationPageTest extends BaseTest {
     }
 
     @Test(dataProvider = "productDataLinkedHashMap")
-    public void productInformationTestLinkedHashMap(String productName, LinkedHashMap<String, String> expectedProductInfo) throws InterruptedException {
+    public void productInformationTestLinkedHashMap(String productName,
+                                                   LinkedHashMap<String, String> expectedProductInfo)
+            throws InterruptedException {
         searchResultsPage = accountsPage.doSearch(productName);
         productInformationPage = searchResultsPage.selectProductFromSearchResults(productName);
-        LinkedHashMap<String, String> actualProductInfo = productInformationPage.getProductInformationLinkedHashMap(productName);
+        LinkedHashMap<String, String> actualProductInfo =
+                productInformationPage.getProductInformationLinkedHashMap(productName);
         for (Map.Entry<String, String> entry : expectedProductInfo.entrySet()) {
             Assert.assertEquals(actualProductInfo.get(entry.getKey()), entry.getValue());
         }
     }
 
     @Test(dataProvider = "productDataTreeMap")
-    public void productInformationTestTreeMap(String productName, TreeMap<String, String> expectedProductInfo) throws InterruptedException {
+    public void productInformationTestTreeMap(String productName,
+                                             TreeMap<String, String> expectedProductInfo)
+            throws InterruptedException {
         searchResultsPage = accountsPage.doSearch(productName);
         productInformationPage = searchResultsPage.selectProductFromSearchResults(productName);
         TreeMap<String, String> actualProductInfo = productInformationPage.getProductInformationTreeMap(productName);

@@ -62,7 +62,8 @@ public class ProductInformationPage {
 
         public HashMap<String,String> getProductHeaderHashMap(String productName){
             By productHeader = By.xpath("//h1[text()='" + productName + "']");
-            String productHeaderName  = elementUtilities.waitForVisibilityOfElement(productHeader, WaitConstants.DEFAULT_MEDIUM_WAIT).getText();
+            String productHeaderName = elementUtilities
+                    .waitForVisibilityOfElement(productHeader, WaitConstants.DEFAULT_MEDIUM_WAIT).getText();
             productInformationHashMap.put("Product Name : ", productHeaderName);
             return productInformationHashMap;
         }
@@ -70,14 +71,16 @@ public class ProductInformationPage {
 
     public LinkedHashMap<String,String> getProductHeaderLinkedHashMap(String productName){
         By productHeader = By.xpath("//h1[text()='" + productName + "']");
-        String productHeaderName  = elementUtilities.waitForVisibilityOfElement(productHeader, WaitConstants.DEFAULT_MEDIUM_WAIT).getText();
+        String productHeaderName = elementUtilities
+                .waitForVisibilityOfElement(productHeader, WaitConstants.DEFAULT_MEDIUM_WAIT).getText();
         productInformationLinkedHashMap.put("Product Name : ", productHeaderName);
         return productInformationLinkedHashMap;
     }
 
     public TreeMap<String,String> getProductHeaderTreeMap(String productName){
         By productHeader = By.xpath("//h1[text()='" + productName + "']");
-        String productHeaderName  = elementUtilities.waitForVisibilityOfElement(productHeader, WaitConstants.DEFAULT_MEDIUM_WAIT).getText();
+        String productHeaderName = elementUtilities
+                .waitForVisibilityOfElement(productHeader, WaitConstants.DEFAULT_MEDIUM_WAIT).getText();
         productInformationTreeMap.put("Product Name : ", productHeaderName);
         return productInformationTreeMap;
     }
@@ -88,7 +91,8 @@ public class ProductInformationPage {
 
 
         private HashMap<String,String> getProductDetailsHashMap(){
-            List<WebElement> productDetailsListHashMap = elementUtilities.waitForVisibilityOfElements(productDetails, WaitConstants.DEFAULT_MEDIUM_WAIT);
+            List<WebElement> productDetailsListHashMap = elementUtilities
+                    .waitForVisibilityOfElements(productDetails, WaitConstants.DEFAULT_MEDIUM_WAIT);
             for(WebElement e: productDetailsListHashMap){
                 String[] productDetails = e.getText().split(":");
                 productInformationHashMap.put(productDetails[0].trim(),productDetails[1].trim());
@@ -98,7 +102,8 @@ public class ProductInformationPage {
 
 
     private LinkedHashMap<String,String> getProductDetailsLinkedHashMap(){
-        List<WebElement> productDetailsListLinkedHashMap = elementUtilities.waitForVisibilityOfElements(productDetails, WaitConstants.DEFAULT_MEDIUM_WAIT);
+        List<WebElement> productDetailsListLinkedHashMap = elementUtilities
+                .waitForVisibilityOfElements(productDetails, WaitConstants.DEFAULT_MEDIUM_WAIT);
         for(WebElement e: productDetailsListLinkedHashMap){
             String[] productDetails = e.getText().split(":");
             productInformationLinkedHashMap.put(productDetails[0].trim(),productDetails[1].trim());
@@ -107,7 +112,8 @@ public class ProductInformationPage {
     }
 
     private TreeMap<String, String> getProductDetailsTreeMap(){
-        List<WebElement> productDetailsListTreeMap = elementUtilities.waitForVisibilityOfElements(productDetails, WaitConstants.DEFAULT_MEDIUM_WAIT);
+        List<WebElement> productDetailsListTreeMap = elementUtilities
+                .waitForVisibilityOfElements(productDetails, WaitConstants.DEFAULT_MEDIUM_WAIT);
         for(WebElement e: productDetailsListTreeMap){
             String[] productDetails = e.getText().split(":");
             productInformationTreeMap.put(productDetails[0].trim(),productDetails[1].trim());
@@ -136,7 +142,8 @@ public class ProductInformationPage {
 
 
         private HashMap<String,String> getProductPriceHashMap(){
-            List<WebElement> productPriceListHashMap = elementUtilities.waitForVisibilityOfElements(productPrice, WaitConstants.DEFAULT_MEDIUM_WAIT);
+            List<WebElement> productPriceListHashMap = elementUtilities
+                    .waitForVisibilityOfElements(productPrice, WaitConstants.DEFAULT_MEDIUM_WAIT);
             productInformationHashMap.put("Price Of Product", productPriceListHashMap.get(0).getText().trim());
             String[] exTax = productPriceListHashMap.get(1).getText().split(":");
             productInformationHashMap.put(exTax[0].trim(), exTax[1].trim());
@@ -144,7 +151,8 @@ public class ProductInformationPage {
         }
 
     private LinkedHashMap<String,String> getProductPriceLinkedHashMap(){
-        List<WebElement> productPriceListLinkedHashMap = elementUtilities.waitForVisibilityOfElements(productPrice, WaitConstants.DEFAULT_MEDIUM_WAIT);
+        List<WebElement> productPriceListLinkedHashMap = elementUtilities
+                .waitForVisibilityOfElements(productPrice, WaitConstants.DEFAULT_MEDIUM_WAIT);
         productInformationLinkedHashMap.put("Price Of Product", productPriceListLinkedHashMap.get(0).getText().trim());
         String[] exTax = productPriceListLinkedHashMap.get(1).getText().split(":");
         productInformationLinkedHashMap.put(exTax[0].trim(), exTax[1].trim());
@@ -152,7 +160,8 @@ public class ProductInformationPage {
     }
 
     private TreeMap<String, String> getProductPriceTreeMap(){
-        List<WebElement> productPriceListTreeMap = elementUtilities.waitForVisibilityOfElements(productPrice, WaitConstants.DEFAULT_MEDIUM_WAIT);
+        List<WebElement> productPriceListTreeMap = elementUtilities
+                .waitForVisibilityOfElements(productPrice, WaitConstants.DEFAULT_MEDIUM_WAIT);
         productInformationTreeMap.put("Price Of Product", productPriceListTreeMap.get(0).getText().trim());
         String[] exTax = productPriceListTreeMap.get(1).getText().split(":");
         productInformationTreeMap.put(exTax[0].trim(), exTax[1].trim());
