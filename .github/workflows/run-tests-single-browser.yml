@@ -1,0 +1,409 @@
+# ============================================================
+# Workflow  : Run Tests - Single Browser
+# Project   : Framework2026
+# Author    : Suyash
+# ============================================================
+#
+# WHAT THIS WORKFLOW DOES:
+#   Manually triggered workflow that runs your TestNG test
+#   suite on a SINGLE browser of your choice against a
+#   chosen environment.
+#
+# WHEN TO USE THIS WORKFLOW:
+#   Use this when you want to run tests on ONE specific
+#   browser (chrome, firefox, or edge). You control:
+#     - Which environment  (default / dev / qa / stage / uat)
+#     - Which browser      (chrome / firefox / edge)
+#     - Which XML suite    (parallel or sequential)
+#     - Headless mode      (true = no visible browser window)
+#     - Incognito mode     (true = no cookies / cache)
+#
+# WHEN NOT TO USE THIS WORKFLOW:
+#   If you want to run tests on ALL browsers simultaneously
+#   (chrome + firefox + edge at the same time), use the
+#   "Run Tests - Multi Browser" workflow instead.
+#
+# HOW TO TRIGGER:
+#   1. Go to GitHub → Actions tab
+#   2. Click "Run Tests - Single Browser" in the left panel
+#   3. Click the "Run workflow" button (top right)
+#   4. Fill in the dropdown parameters
+#   5. Click the green "Run workflow" button
+#
+# PARAMETERS EXPLAINED:
+#   env:
+#     Which config file to load from:
+#       src/main/resources/config/<env>.config.properties
+#     Each env has its own URL, username, password settings.
+#     "default" loads default.config.properties
+#
+#   browser:
+#     Which browser to launch for all tests.
+#     Maps to -Dbrowser= system property which overrides the
+#     browser value in the config file via BaseTest.setup().
+#
+#   xml_file:
+#     Which TestNG XML suite file to run. Only SINGLE browser
+#     XML files are listed here (parallel and sequential).
+#     These XMLs do NOT have browser hardcoded inside them
+#     so your browser dropdown choice is fully respected.
+#       - parallel   : all test classes run at the same time
+#       - sequential : test classes run one after another
+#
+#   headless:
+#     true  = browser runs without a visible UI window.
+#             RECOMMENDED for CI — GitHub runners have no
+#             display screen so headless must be true.
+#     false = browser opens with full UI (only works locally)
+#
+#   incognito:
+#     true  = browser starts with no cookies, no cache,
+#             no saved sessions — clean slate every run.
+#     false = browser uses default profile
+#
+# WHAT THE MVN COMMAND LOOKS LIKE:
+#   mvn clean test
+#     -Denv=qa
+#     -Dbrowser=firefox
+#     -Dheadless=true
+#     -Dincognito=true
+#     -Dsurefire.suiteXmlFiles=src/test/resources/testrunners/testng_all_test_default_parallel.xml
+#
+# WHAT HAPPENS WHEN TESTS PASS:
+#   - Maven prints "BUILD SUCCESS"
+#   - Job exits with code 0 → green ✓
+#
+# WHAT HAPPENS WHEN TESTS FAIL:
+#   - Maven prints "BUILD FAILURE" with failed test details
+#   - Job exits with code 1 → red ✗
+#   - Check the logs for exact test name and failure reason
+# ============================================================
+
+name: Run Tests - Single Browser
+
+# -----------------------------------------------------------------
+# TRIGGER — workflow_dispatch
+# This workflow is MANUALLY triggered only. It does NOT run
+# automatically on push or pull_request.
+#
+# workflow_dispatch adds a "Run workflow" button on the
+# GitHub Actions tab where you fill in the parameters below
+# before starting the run.
+# -----------------------------------------------------------------
+on:
+  workflow_dispatch:
+    inputs:
+
+      # -----------------------------------------------------------
+      # PARAMETER 1 — ENVIRONMENT
+      # Tells DriverFactory.initProperties() which config file
+      # to load. Maps to System.getProperty("env") in your code.
+      # "default" means no -Denv flag → loads default.config.properties
+      # -----------------------------------------------------------
+      env:
+        description: "Environment to run tests on"
+        type: choice
+        options:
+          - default
+          - dev
+          - qa
+          - stage
+          - uat
+        default: default
+
+      # -----------------------------------------------------------
+      # PARAMETER 2 — BROWSER
+      # Which browser to launch. Passed as -Dbrowser= to Maven.
+      # BaseTest.setup() reads this and sets it on the properties
+      # object which DriverFactory.initBrowser() uses to decide
+      # which WebDriver to create (ChromeDriver/FirefoxDriver/EdgeDriver)
+      # -----------------------------------------------------------
+      browser:
+        description: "Browser to run tests on"
+        type: choice
+        options:
+          - chrome
+          - firefox
+          - edge
+        default: chrome
+
+      # -----------------------------------------------------------
+      # PARAMETER 3 — TESTNG XML SUITE
+      # Which TestNG XML file to use as the test suite.
+      # Only SINGLE browser XMLs are listed here — these do NOT
+      # hardcode browser inside <parameter name="browser"> tags
+      # so your browser dropdown choice above is fully respected.
+      #
+      #   parallel   → all test classes run simultaneously
+      #                faster but needs more memory
+      #   sequential → test classes run one after another
+      #                slower but easier to debug
+      # -----------------------------------------------------------
+      xml_file:
+        description: "TestNG XML suite to run"
+        type: choice
+        options:
+          - testng_all_test_default_parallel.xml
+          - testng_all_test_default_sequential.xml
+        default: testng_all_test_default_parallel.xml
+
+      # -----------------------------------------------------------
+      # PARAMETER 4 — HEADLESS MODE
+      # true  → browser runs without opening a visible window.
+      #         GitHub runners have no display so this MUST be
+      #         true when running in CI/GitHub Actions.
+      # false → browser opens with full UI. Only use locally.
+      # -----------------------------------------------------------
+      headless:
+        description: "Run browser in headless mode (must be true in CI)"
+        type: boolean
+        default: true
+
+      # -----------------------------------------------------------
+      # PARAMETER 5 — INCOGNITO MODE
+      # true  → browser starts fresh with no cookies, no cache,
+      #         no saved logins. Ensures tests are not affected
+      #         by previous sessions. Recommended for CI.
+      # false → browser uses its default profile
+      # -----------------------------------------------------------
+      incognito:
+        description: "Run browser in incognito mode"
+        type: boolean
+        default: true
+
+jobs:
+  test:
+    name: >
+      Tests | ENV=${{ inputs.env }}
+      | BROWSER=${{ inputs.browser }}
+      | ${{ inputs.xml_file }}
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # -----------------------------------------------------------
+      # STEP 1 — CHECKOUT
+      # Clones the repository onto the GitHub runner so Maven
+      # can find pom.xml, source files, and XML suite files.
+      # -----------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------
+      # STEP 2 — SET UP JAVA 24
+      # Installs Java 24 on the runner matching your pom.xml
+      # compiler configuration (source/target = 24).
+      # -----------------------------------------------------------
+      - name: Set up Java 24
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "24"
+
+      # -----------------------------------------------------------
+      # STEP 3 — CACHE MAVEN DEPENDENCIES
+      # Caches ~/.m2/repository so dependencies are not
+      # re-downloaded on every run. Cache key is based on
+      # pom.xml content — refreshes automatically when
+      # dependencies change.
+      # -----------------------------------------------------------
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      # -----------------------------------------------------------
+      # STEP 4 — PRINT RUN CONFIGURATION
+      # Prints a clear summary of all selected parameters before
+      # the tests start. Useful for debugging and audit trail.
+      # -----------------------------------------------------------
+      - name: Print run configuration
+        run: |
+          echo "=================================================="
+          echo "  TEST RUN CONFIGURATION"
+          echo "=================================================="
+          echo "  Environment  : ${{ inputs.env }}"
+          echo "  Browser      : ${{ inputs.browser }}"
+          echo "  XML Suite    : ${{ inputs.xml_file }}"
+          echo "  Headless     : ${{ inputs.headless }}"
+          echo "  Incognito    : ${{ inputs.incognito }}"
+          echo "=================================================="
+
+      # -----------------------------------------------------------
+      # STEP 5 — RUN TESTS
+      # Runs mvn clean test with all selected parameters:
+      #
+      #   clean  → deletes target/ folder before running so
+      #            there are no leftover files from previous runs
+      #
+      #   test   → compiles and runs all tests defined in the
+      #            selected XML suite file
+      #
+      #   -Denv  → tells DriverFactory which config file to load
+      #            skipped if "default" is selected since your
+      #            code loads default.config.properties when
+      #            System.getProperty("env") is null
+      #
+      #   -Dbrowser    → overrides browser in config file
+      #   -Dheadless   → overrides headless in config file
+      #   -Dincognito  → overrides incognito in config file
+      #
+      #   -Dsurefire.suiteXmlFiles → overrides the XML file
+      #            hardcoded in pom.xml surefire plugin config
+      #
+      #   -B → batch mode, clean log output (no download bars)
+      # -----------------------------------------------------------
+      # -----------------------------------------------------------
+      # STEP 5 — RUN TESTS
+      # Runs mvn clean test with all selected parameters:
+      #
+      #   clean  → deletes target/ folder before running so
+      #            there are no leftover files from previous runs
+      #
+      #   test   → compiles and runs all tests defined in the
+      #            selected XML suite file
+      #
+      #   -Denv  → tells DriverFactory which config file to load
+      #            skipped if "default" is selected since your
+      #            code loads default.config.properties when
+      #            System.getProperty("env") is null
+      #
+      #   -Dbrowser    → overrides browser in config file
+      #   -Dheadless   → overrides headless in config file
+      #   -Dincognito  → overrides incognito in config file
+      #
+      #   -Dsurefire.suiteXmlFiles → overrides the XML file
+      #            hardcoded in pom.xml surefire plugin config
+      #
+      #   -B → batch mode, clean log output (no download bars)
+      #
+      #   continue-on-error: true → IMPORTANT: even if some
+      #            tests fail, the workflow continues to the
+      #            report steps below. Without this, a test
+      #            failure would stop the workflow and you
+      #            would never see the reports.
+      # -----------------------------------------------------------
+      - name: Run TestNG suite
+        continue-on-error: true
+        run: |
+          ENV_FLAG=""
+          if [ "${{ inputs.env }}" != "default" ]; then
+            ENV_FLAG="-Denv=${{ inputs.env }}"
+          fi
+
+          mvn clean test $ENV_FLAG \
+            -Dbrowser=${{ inputs.browser }} \
+            -Dheadless=${{ inputs.headless }} \
+            -Dincognito=${{ inputs.incognito }} \
+            -Dsurefire.suiteXmlFiles=src/test/resources/testrunners/${{ inputs.xml_file }} \
+            -B
+
+      # -----------------------------------------------------------
+      # STEP 6 — UPLOAD TESTNG REPORT
+      # -----------------------------------------------------------
+      # TestNG automatically generates an HTML report after every
+      # run. It is saved to target/surefire-reports/ by Maven
+      # Surefire plugin and contains:
+      #   - Total tests passed / failed / skipped
+      #   - Each test method result with duration
+      #   - Stack traces for failed tests
+      #   - index.html is the main entry point to open
+      #
+      # actions/upload-artifact uploads this folder as a ZIP
+      # file attached to the workflow run. You can download it
+      # from the GitHub Actions run summary page.
+      #
+      # if: always() → uploads the report even if tests failed
+      #   or the previous step errored. Without this, a test
+      #   failure would skip the upload and you would have no
+      #   report to look at.
+      # -----------------------------------------------------------
+      - name: Upload TestNG report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestNG-Report-${{ inputs.env }}-${{ inputs.browser }}
+          path: target/surefire-reports/
+          retention-days: 7
+
+      # -----------------------------------------------------------
+      # STEP 7 — UPLOAD CHAINTEST REPORT
+      # -----------------------------------------------------------
+      # ChainTest is configured in chaintest.properties to generate
+      # two HTML files inside target/chaintest/:
+      #
+      #   Index.html → full interactive test report with:
+      #     - Test timeline and execution order
+      #     - Pass/fail status per test with screenshots
+      #     - Dark theme UI (chaintest.generator.simple.dark-theme=true)
+      #     - Datetime format: yyyy-MM-dd hh:mm:ss a
+      #
+      #   Email.html → compact email-friendly summary report
+      #     - Suitable for sending test results via email
+      #     - Generated by ChainTestEmailGenerator
+      #
+      # Both files are uploaded together as one artifact ZIP.
+      # Open Index.html for the full report after downloading.
+      #
+      # if: always() → uploads even if tests failed so you
+      #   always have the ChainTest report available.
+      # -----------------------------------------------------------
+      - name: Upload ChainTest report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ChainTest-Report-${{ inputs.env }}-${{ inputs.browser }}
+          path: target/chaintest/
+          retention-days: 7
+
+      # -----------------------------------------------------------
+      # STEP 8 — GENERATE AND UPLOAD ALLURE REPORT
+      # -----------------------------------------------------------
+      # Allure works in two stages:
+      #
+      # STAGE 1 — Raw results (generated during test run)
+      #   Your allure.properties file sets:
+      #     allure.results.directory=target/allure-results
+      #   During mvn test, the allure-testng listener writes
+      #   one JSON file per test into target/allure-results/.
+      #   These are raw data files, not the final HTML report.
+      #
+      # STAGE 2 — HTML report generation (this step)
+      #   The allure-commandline tool reads the raw JSON files
+      #   from target/allure-results/ and generates a full
+      #   interactive HTML report in target/allure-report/.
+      #   The report includes:
+      #     - Overview dashboard with pass/fail charts
+      #     - Test suites breakdown
+      #     - Timeline view showing parallel execution
+      #     - Per-test details with steps, screenshots, logs
+      #     - Categories for failed/broken/skipped tests
+      #     - Trends over multiple runs (if history is kept)
+      #
+      # allure generate flags:
+      #   target/allure-results → input: raw JSON result files
+      #   -o target/allure-report → output: final HTML report
+      #   --clean → clears output folder before generating
+      #             so there are no stale files from old runs
+      #
+      # Open index.html inside the downloaded ZIP to view
+      # the full Allure report in your browser.
+      #
+      # if: always() → generates and uploads even if tests
+      #   failed so you always have the Allure report.
+      # -----------------------------------------------------------
+      - name: Generate Allure report
+        if: always()
+        run: |
+          mvn allure:report -B
+
+      - name: Upload Allure report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Allure-Report-${{ inputs.env }}-${{ inputs.browser }}
+          path: target/site/allure-maven-plugin/
+          retention-days: 7

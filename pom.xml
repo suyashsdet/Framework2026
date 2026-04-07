@@ -90,6 +90,22 @@
         <plugins>
 
 
+            <!-- Allure Maven Plugin
+                 Generates the full Allure HTML report from raw
+                 JSON result files in target/allure-results/.
+                 Run with: mvn allure:report
+                 Output goes to: target/site/allure-maven-plugin/
+            -->
+            <plugin>
+                <groupId>io.qameta.allure</groupId>
+                <artifactId>allure-maven</artifactId>
+                <version>2.14.0</version>
+                <configuration>
+                    <reportVersion>2.33.0</reportVersion>
+                    <resultsDirectory>${project.build.directory}/allure-results</resultsDirectory>
+                </configuration>
+            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
