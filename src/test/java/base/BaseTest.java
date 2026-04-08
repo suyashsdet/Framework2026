@@ -43,6 +43,13 @@ public class BaseTest {
         properties = driverFactory.initProperties();
 
         if(browser!=null){
+            // Apply -Dbrowser system property override if present
+            // (VM single-browser workflow passes -Dbrowser=firefox etc.)
+            // This ensures prop.getProperty("browser") is always the
+            // correct final value that DriverFactory should use.
+            if (System.getProperty("browser") != null) {
+                browser = System.getProperty("browser");
+            }
             properties.setProperty("browser", browser);
         }
 

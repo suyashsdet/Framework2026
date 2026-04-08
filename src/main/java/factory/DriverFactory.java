@@ -52,9 +52,14 @@ public class DriverFactory {
         // This allows the GitHub Actions workflow to control the
         // browser via a dropdown without editing any config file.
         // -------------------------------------------------------
-        String browser = System.getProperty("browser") != null
-                ? System.getProperty("browser")
-                : prop.getProperty("browser");
+        // prop.getProperty("browser") is the single source of truth.
+        // Priority:
+        //   1. XML <parameter name="browser"> set by BaseTest via properties.setProperty()
+        //      which already accounts for -Dbrowser system property override in BaseTest.
+        //   2. System.getProperty("browser") as final fallback (local runs, no XML param)
+        String browser = prop.getProperty("browser") != null
+                ? prop.getProperty("browser")
+                : System.getProperty("browser");
 
         OptionsFactory optionsFactory = new OptionsFactory(prop);
 
@@ -78,6 +83,8 @@ public class DriverFactory {
         //   2. Generic URL    (SELENIUM_REMOTE_URL)
         //   3. null           → fall through to local driver below
         // -------------------------------------------------------
+        // browser is already resolved above (system property → config file → XML parameter via BaseTest)
+        // so we use it directly here — do NOT re-read System.getProperty("browser") again
         String remoteUrl = System.getProperty("SELENIUM_REMOTE_URL_" + browser.trim().toUpperCase());
         if (remoteUrl == null) remoteUrl = System.getProperty("SELENIUM_REMOTE_URL");
 
