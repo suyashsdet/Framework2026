@@ -1,0 +1,348 @@
+# ============================================================
+# Workflow  : Run Tests - Multi Browser (Docker)
+# Project   : Framework2026
+# Author    : Suyash
+# ============================================================
+#
+# WHAT THIS WORKFLOW DOES:
+#   Same as "Run Tests - Multi Browser" but instead of
+#   installing browsers on the GitHub runner (VM), it uses
+#   Docker Compose to spin up THREE Selenium standalone
+#   containers simultaneously — one each for Chrome, Firefox,
+#   and Edge — each on its own port.
+#
+#   Tests connect to each container via RemoteWebDriver using
+#   the port mapped to that browser:
+#     Chrome  → http://localhost:4444/wd/hub
+#     Firefox → http://localhost:4445/wd/hub
+#     Edge    → http://localhost:4446/wd/hub
+#
+# WHY DOCKER INSTEAD OF VM:
+#   - All 3 browsers run in isolated, versioned containers
+#   - No browser/driver installation or version mismatch issues
+#   - Containers are discarded after the run — clean every time
+#   - Easier to reproduce locally with the same docker-compose file
+#
+# HOW IT WORKS:
+#   1. A docker-compose.yml is written dynamically in the workflow
+#   2. docker compose up -d starts all 3 containers in parallel
+#   3. Workflow waits until all 3 /status endpoints are ready
+#   4. Maven runs the multi-browser XML suite with 3 remote URLs:
+#        -DSELENIUM_REMOTE_URL_CHROME=http://localhost:4444/wd/hub
+#        -DSELENIUM_REMOTE_URL_FIREFOX=http://localhost:4445/wd/hub
+#        -DSELENIUM_REMOTE_URL_EDGE=http://localhost:4446/wd/hub
+#   5. DriverFactory reads the correct URL per browser from the
+#      XML <parameter name="browser"> value
+#   6. docker compose down cleans up all containers after tests
+#
+# REPORTS GENERATED (all accessible via live URL):
+#   https://suyashsdet.github.io/Framework2026/allure/
+#   https://suyashsdet.github.io/Framework2026/chaintest/
+#   https://suyashsdet.github.io/Framework2026/testng/
+# ============================================================
+
+name: Run Tests - Multi Browser (Docker)
+
+on:
+  workflow_dispatch:
+    inputs:
+
+      env:
+        description: "Environment to run tests on"
+        type: choice
+        options:
+          - default
+          - dev
+          - qa
+          - stage
+          - uat
+        default: default
+
+      # -----------------------------------------------------------
+      # NOTE: No browser dropdown — same reason as the VM-based
+      # multi-browser workflow. The XML files hardcode all 3
+      # browsers as separate <test> blocks. All 3 always run.
+      # -----------------------------------------------------------
+      xml_file:
+        description: "TestNG XML suite to run (always runs Chrome + Firefox + Edge)"
+        type: choice
+        options:
+          - testng_all_test_default_parallel_multi_browser.xml
+          - testng_all_test_default_sequential_multi_browser.xml
+        default: testng_all_test_default_parallel_multi_browser.xml
+
+      incognito:
+        description: "Run browsers in incognito mode"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  test:
+    name: >
+      Tests (Docker) | ENV=${{ inputs.env }}
+      | Chrome + Firefox + Edge
+      | ${{ inputs.xml_file }}
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # -----------------------------------------------------------
+      # STEP 1 — CHECKOUT
+      # -----------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------
+      # STEP 2 — SET UP JAVA 24
+      # -----------------------------------------------------------
+      - name: Set up Java 24
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "24"
+
+      # -----------------------------------------------------------
+      # STEP 3 — CACHE MAVEN DEPENDENCIES
+      # -----------------------------------------------------------
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      # -----------------------------------------------------------
+      # STEP 4 — WRITE DOCKER COMPOSE FILE
+      # -----------------------------------------------------------
+      # Creates a docker-compose.yml at runtime with 3 services:
+      #
+      #   selenium-chrome  → selenium/standalone-chrome:latest
+      #                      exposed on host port 4444
+      #
+      #   selenium-firefox → selenium/standalone-firefox:latest
+      #                      exposed on host port 4445
+      #
+      #   selenium-edge    → selenium/standalone-edge:latest
+      #                      exposed on host port 4446
+      #
+      # Each service gets:
+      #   shm_size: 2g              → prevents browser crashes
+      #                               caused by /dev/shm being
+      #                               too small (default 64 MB)
+      #   SE_NODE_MAX_SESSIONS: 5   → allows up to 5 parallel
+      #                               sessions per container,
+      #                               matching TestNG thread-count
+      # -----------------------------------------------------------
+      - name: Write Docker Compose file
+        run: |
+          cat > docker-compose.yml << 'EOF'
+          version: "3.8"
+          services:
+            selenium-chrome:
+              image: selenium/standalone-chrome:latest
+              ports:
+                - "4444:4444"
+              shm_size: "2g"
+              environment:
+                - SE_NODE_MAX_SESSIONS=5
+
+            selenium-firefox:
+              image: selenium/standalone-firefox:latest
+              ports:
+                - "4445:4444"
+              shm_size: "2g"
+              environment:
+                - SE_NODE_MAX_SESSIONS=5
+
+            selenium-edge:
+              image: selenium/standalone-edge:latest
+              ports:
+                - "4446:4444"
+              shm_size: "2g"
+              environment:
+                - SE_NODE_MAX_SESSIONS=5
+          EOF
+
+      # -----------------------------------------------------------
+      # STEP 5 — START ALL SELENIUM CONTAINERS
+      # -----------------------------------------------------------
+      # docker compose up -d pulls all 3 images (if not cached)
+      # and starts all 3 containers in parallel in the background.
+      #
+      # After starting, we wait for all 3 /status endpoints to
+      # return HTTP 200 before running tests. Each browser gets
+      # up to 60 seconds (30 retries × 2 seconds) to become ready.
+      # -----------------------------------------------------------
+      - name: Start all Selenium Docker containers
+        run: |
+          docker compose up -d
+
+          echo "Waiting for Chrome container (port 4444)..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4444/wd/hub/status > /dev/null 2>&1; then
+              echo "Chrome ready after ${i} attempts"; break
+            fi
+            sleep 2
+          done
+
+          echo "Waiting for Firefox container (port 4445)..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4445/wd/hub/status > /dev/null 2>&1; then
+              echo "Firefox ready after ${i} attempts"; break
+            fi
+            sleep 2
+          done
+
+          echo "Waiting for Edge container (port 4446)..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4446/wd/hub/status > /dev/null 2>&1; then
+              echo "Edge ready after ${i} attempts"; break
+            fi
+            sleep 2
+          done
+
+      # -----------------------------------------------------------
+      # STEP 6 — PRINT RUN CONFIGURATION
+      # -----------------------------------------------------------
+      - name: Print run configuration
+        run: |
+          echo "=================================================="
+          echo "  TEST RUN CONFIGURATION (Docker Multi Browser)"
+          echo "=================================================="
+          echo "  Environment       : ${{ inputs.env }}"
+          echo "  Browsers          : Chrome + Firefox + Edge"
+          echo "  Chrome  URL       : http://localhost:4444/wd/hub"
+          echo "  Firefox URL       : http://localhost:4445/wd/hub"
+          echo "  Edge    URL       : http://localhost:4446/wd/hub"
+          echo "  XML Suite         : ${{ inputs.xml_file }}"
+          echo "  Headless          : true (always in Docker)"
+          echo "  Incognito         : ${{ inputs.incognito }}"
+          echo "=================================================="
+
+      # -----------------------------------------------------------
+      # STEP 7 — RUN TESTS
+      # -----------------------------------------------------------
+      # Passes 3 separate remote URL system properties so
+      # DriverFactory can route each browser to its own container:
+      #
+      #   -DSELENIUM_REMOTE_URL_CHROME=http://localhost:4444/wd/hub
+      #   -DSELENIUM_REMOTE_URL_FIREFOX=http://localhost:4445/wd/hub
+      #   -DSELENIUM_REMOTE_URL_EDGE=http://localhost:4446/wd/hub
+      #
+      # DriverFactory should read the browser name from the XML
+      # <parameter> tag and pick the matching remote URL property.
+      #
+      # -Dheadless=true is always forced — Docker containers have
+      # no display so headless is mandatory.
+      # -----------------------------------------------------------
+      - name: Run TestNG suite
+        continue-on-error: true
+        run: |
+          ENV_FLAG=""
+          if [ "${{ inputs.env }}" != "default" ]; then
+            ENV_FLAG="-Denv=${{ inputs.env }}"
+          fi
+
+          mvn clean test $ENV_FLAG \
+            -Dheadless=true \
+            -Dincognito=${{ inputs.incognito }} \
+            -DSELENIUM_REMOTE_URL_CHROME=http://localhost:4444/wd/hub \
+            -DSELENIUM_REMOTE_URL_FIREFOX=http://localhost:4445/wd/hub \
+            -DSELENIUM_REMOTE_URL_EDGE=http://localhost:4446/wd/hub \
+            -Dsurefire.suiteXmlFiles=src/test/resources/testrunners/${{ inputs.xml_file }} \
+            -B
+
+      # -----------------------------------------------------------
+      # STEP 8 — STOP ALL SELENIUM CONTAINERS
+      # -----------------------------------------------------------
+      # docker compose down stops and removes all 3 containers
+      # and the network created by docker compose up.
+      # if: always() ensures cleanup even if tests failed.
+      # -----------------------------------------------------------
+      - name: Stop all Selenium Docker containers
+        if: always()
+        run: docker compose down || true
+
+      # -----------------------------------------------------------
+      # STEP 9 — GENERATE ALLURE REPORT
+      # -----------------------------------------------------------
+      - name: Generate Allure report
+        if: always()
+        run: mvn allure:report -B
+
+      # -----------------------------------------------------------
+      # STEP 10 — PREPARE GITHUB PAGES CONTENT
+      # -----------------------------------------------------------
+      - name: Prepare GitHub Pages content
+        if: always()
+        run: |
+          mkdir -p reports/testng reports/chaintest reports/allure
+
+          cp -r target/surefire-reports/. reports/testng/ 2>/dev/null || echo "No TestNG report found"
+          cp -r target/chaintest/. reports/chaintest/ 2>/dev/null || echo "No ChainTest report found"
+          cp -r target/site/allure-maven-plugin/. reports/allure/ 2>/dev/null || echo "No Allure report found"
+
+          cat > reports/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Framework2026 Test Reports</title>
+            <style>
+              body { font-family: Arial, sans-serif; max-width: 600px;
+                     margin: 60px auto; background: #f5f5f5; }
+              h1   { color: #333; }
+              .card { background: white; border-radius: 8px;
+                      padding: 20px; margin: 16px 0;
+                      box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+              a    { color: #0066cc; font-size: 18px;
+                     text-decoration: none; font-weight: bold; }
+              a:hover { text-decoration: underline; }
+              p    { color: #666; margin: 6px 0 0; font-size: 14px; }
+            </style>
+          </head>
+          <body>
+            <h1>Framework2026 — Test Reports (Docker Multi Browser)</h1>
+            <div class="card">
+              <a href="allure/index.html">📊 Allure Report</a>
+              <p>Rich dashboard with charts, timeline, and per-test details</p>
+            </div>
+            <div class="card">
+              <a href="chaintest/Index.html">🔗 ChainTest Report</a>
+              <p>Interactive dark theme report with screenshots</p>
+            </div>
+            <div class="card">
+              <a href="testng/index.html">✅ TestNG Report</a>
+              <p>Pass/fail per test method with stack traces</p>
+            </div>
+          </body>
+          </html>
+          EOF
+
+      # -----------------------------------------------------------
+      # STEP 11 — UPLOAD TO GITHUB PAGES
+      # -----------------------------------------------------------
+      - name: Upload reports to GitHub Pages
+        if: always()
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: reports/
+
+  deploy:
+    name: Publish reports to GitHub Pages
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

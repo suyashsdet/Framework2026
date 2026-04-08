@@ -53,6 +53,25 @@ public class BaseTest {
 
     @AfterMethod(alwaysRun = true)
     public void attachScreenshot(ITestResult result){
+        // -------------------------------------------------------
+        // NEW vs D11: Added null check — DriverFactory.getDriver() != null
+        //
+        // D11 code was:
+        //   if(!result.isSuccess()){
+        //       ChainTestListener.embed(...)
+        //   }
+        //
+        // The problem: if @BeforeTest setup() failed (e.g. browser
+        // could not launch, or the page load timed out), the driver
+        // was never initialised. ThreadLocal.get() returns null in
+        // that case. Calling getScreenshotFile() on a null driver
+        // would throw a NullPointerException, crashing the @AfterMethod
+        // itself and hiding the real failure message in the report.
+        //
+        // The fix: only attempt to take a screenshot when the driver
+        // is actually alive. If it is null, we skip silently — the
+        // test is already marked as failed by TestNG anyway.
+        // -------------------------------------------------------
         if(!result.isSuccess() && DriverFactory.getDriver() != null){
             ChainTestListener.embed(DriverFactory.getScreenshotFile(), "image/png");
         }
@@ -60,6 +79,23 @@ public class BaseTest {
 
     @AfterTest
     public void tearDown(){
+        // -------------------------------------------------------
+        // NEW vs D11: Added null check before calling driver.quit()
+        //
+        // D11 code was:
+        //   driver.quit();
+        //
+        // The problem: if @BeforeTest setup() threw an exception
+        // (e.g. invalid browser name, config file not found, or
+        // page load timeout), the driver field was never assigned.
+        // Calling driver.quit() on a null reference throws
+        // NullPointerException in teardown, which pollutes the
+        // test report with a secondary error that is unrelated to
+        // the actual root cause.
+        //
+        // The fix: guard with a null check so teardown is always
+        // safe to call regardless of whether setup succeeded.
+        // -------------------------------------------------------
         if(DriverFactory.getDriver() != null){
             driver.quit();
         }

@@ -38,7 +38,6 @@ public class TestAllureListener implements ITestListener {
     @Override
     public void onStart(ITestContext iTestContext) {
         System.out.println("I am in onStart method " + iTestContext.getName());
-        //iTestContext.setAttribute("WebDriver", BasePage.getDriver());
     }
 
     @Override
@@ -59,6 +58,29 @@ public class TestAllureListener implements ITestListener {
     @Override
     public void onTestFailure(ITestResult iTestResult) {
         System.out.println("I am in onTestFailure method " + getTestMethodName(iTestResult) + " failed");
+
+        // -------------------------------------------------------
+        // NEW vs D11: Changed the driver check from instanceof to null check.
+        //
+        // D11 code was:
+        //   Object testClass = iTestResult.getInstance();
+        //   if (DriverFactory.getDriver() instanceof WebDriver) {
+        //       saveScreenshotPNG(DriverFactory.getDriver());
+        //   }
+        //
+        // Problems with D11 approach:
+        //   1. "instanceof WebDriver" is always true when the driver
+        //      is not null (ChromeDriver/FirefoxDriver/EdgeDriver all
+        //      implement WebDriver), so the check was redundant.
+        //   2. If the driver was null (setup failed), instanceof on
+        //      null returns false safely — but the intent was unclear.
+        //   3. The unused "Object testClass" variable was dead code.
+        //
+        // Framework2026 fix:
+        //   Use a simple null check — cleaner, more explicit, and
+        //   removes the dead testClass variable. The behaviour is
+        //   identical: only take a screenshot when the driver exists.
+        // -------------------------------------------------------
         if (DriverFactory.getDriver() != null) {
             System.out.println("Screenshot captured for test case:" + getTestMethodName(iTestResult));
             saveScreenshotPNG(DriverFactory.getDriver());

@@ -84,17 +84,31 @@
 
 
 
-
   </dependencies>
     <build>
         <plugins>
 
 
-            <!-- Allure Maven Plugin
-                 Generates the full Allure HTML report from raw
-                 JSON result files in target/allure-results/.
-                 Run with: mvn allure:report
-                 Output goes to: target/site/allure-maven-plugin/
+            <!--
+                NEW vs D11: This entire plugin block did NOT exist in FrameworkD11.
+
+                allure-maven plugin allows you to generate the full Allure HTML
+                report locally from the command line using: mvn allure:report
+
+                Without this plugin, you could only generate the Allure report
+                by running the allure CLI tool separately after the test run.
+                With this plugin, Maven itself can generate the report as part
+                of the build lifecycle.
+
+                Configuration:
+                  reportVersion    → which version of the Allure report UI to use
+                  resultsDirectory → where the raw JSON result files are (written
+                                     by allure-testng during the test run)
+                Output goes to: target/site/allure-maven-plugin/index.html
+
+                In GitHub Actions, the workflow uses the allure CLI instead of
+                this plugin to generate the report, but this plugin is useful
+                for local report generation without installing the CLI.
             -->
             <plugin>
                 <groupId>io.qameta.allure</groupId>
@@ -125,6 +139,24 @@
                     <forkCount>1</forkCount>
                     <reuseForks>true</reuseForks>
                     <suiteXmlFiles>
+                        <!--
+                            NEW vs D11: Default XML suite changed from single-browser to multi-browser.
+
+                            D11 used:
+                              testng_all_test_default_parallel.xml
+                              (runs all tests on ONE browser, no <parameter name="browser"> tags)
+
+                            Framework2026 uses:
+                              testng_all_test_default_parallel_multi_browser.xml
+                              (runs all tests on Chrome + Firefox + Edge simultaneously)
+
+                            WHY: Framework2026 is designed for CI with GitHub Actions.
+                            The multi-browser XML is the "full" default run that exercises
+                            all browsers in parallel. The single-browser XML is still
+                            available and is what the GitHub Actions "Run Tests - Single
+                            Browser" workflow uses (it overrides this via -Dsurefire.suiteXmlFiles
+                            or by the workflow calling Maven with a specific XML path).
+                        -->
                         <suiteXmlFile>src/test/resources/testrunners/testng_all_test_default_parallel_multi_browser.xml</suiteXmlFile>
                     </suiteXmlFiles>
                     <argLine>

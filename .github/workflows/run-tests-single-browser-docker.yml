@@ -1,0 +1,319 @@
+# ============================================================
+# Workflow  : Run Tests - Single Browser (Docker)
+# Project   : Framework2026
+# Author    : Suyash
+# ============================================================
+#
+# WHAT THIS WORKFLOW DOES:
+#   Same as "Run Tests - Single Browser" but instead of
+#   installing a browser on the GitHub runner (VM), it spins
+#   up an official Selenium standalone Docker container for
+#   the chosen browser. Tests connect to it via Remote WebDriver
+#   using SELENIUM_REMOTE_URL=http://localhost:4444/wd/hub.
+#
+# WHY DOCKER INSTEAD OF VM:
+#   - Selenium Grid Docker images are pre-configured, versioned,
+#     and identical across every run — no "works on my machine"
+#   - No need to install/update browser drivers manually
+#   - Containers are isolated and discarded after the run
+#   - Easier to reproduce locally: just run the same docker image
+#
+# HOW IT WORKS:
+#   1. GitHub runner (ubuntu-latest) starts as normal
+#   2. A Selenium standalone container is started via docker run
+#      on the runner's Docker daemon (every ubuntu-latest runner
+#      has Docker pre-installed)
+#   3. Maven runs tests with -DSELENIUM_REMOTE_URL pointing to
+#      the container's exposed port 4444
+#   4. DriverFactory reads SELENIUM_REMOTE_URL and creates a
+#      RemoteWebDriver instead of a local ChromeDriver/FirefoxDriver
+#   5. Container is stopped after tests finish
+#
+# REPORTS GENERATED (all accessible via live URL):
+#   https://suyashsdet.github.io/Framework2026/allure/
+#   https://suyashsdet.github.io/Framework2026/chaintest/
+#   https://suyashsdet.github.io/Framework2026/testng/
+# ============================================================
+
+name: Run Tests - Single Browser (Docker)
+
+on:
+  workflow_dispatch:
+    inputs:
+
+      env:
+        description: "Environment to run tests on"
+        type: choice
+        options:
+          - default
+          - dev
+          - qa
+          - stage
+          - uat
+        default: default
+
+      browser:
+        description: "Browser to run tests on"
+        type: choice
+        options:
+          - chrome
+          - firefox
+          - edge
+        default: chrome
+
+      xml_file:
+        description: "TestNG XML suite to run"
+        type: choice
+        options:
+          - testng_all_test_default_parallel.xml
+          - testng_all_test_default_sequential.xml
+        default: testng_all_test_default_parallel.xml
+
+      incognito:
+        description: "Run browser in incognito mode"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  test:
+    name: >
+      Tests (Docker) | ENV=${{ inputs.env }}
+      | BROWSER=${{ inputs.browser }}
+      | ${{ inputs.xml_file }}
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # -----------------------------------------------------------
+      # STEP 1 — CHECKOUT
+      # -----------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------
+      # STEP 2 — SET UP JAVA 24
+      # -----------------------------------------------------------
+      - name: Set up Java 24
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "24"
+
+      # -----------------------------------------------------------
+      # STEP 3 — CACHE MAVEN DEPENDENCIES
+      # -----------------------------------------------------------
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      # -----------------------------------------------------------
+      # STEP 4 — RESOLVE DOCKER IMAGE FOR CHOSEN BROWSER
+      # -----------------------------------------------------------
+      # Maps the browser input to the correct Selenium standalone
+      # Docker image tag. All images are from the official
+      # selenium/standalone-* series on Docker Hub.
+      #
+      #   chrome  → selenium/standalone-chrome:latest
+      #   firefox → selenium/standalone-firefox:latest
+      #   edge    → selenium/standalone-edge:latest
+      #
+      # The resolved image name is stored in GITHUB_ENV so it
+      # is available in all subsequent steps as $SELENIUM_IMAGE.
+      # -----------------------------------------------------------
+      - name: Resolve Selenium Docker image for browser
+        run: |
+          case "${{ inputs.browser }}" in
+            chrome)  echo "SELENIUM_IMAGE=selenium/standalone-chrome:latest"  >> $GITHUB_ENV ;;
+            firefox) echo "SELENIUM_IMAGE=selenium/standalone-firefox:latest" >> $GITHUB_ENV ;;
+            edge)    echo "SELENIUM_IMAGE=selenium/standalone-edge:latest"    >> $GITHUB_ENV ;;
+          esac
+
+      # -----------------------------------------------------------
+      # STEP 5 — START SELENIUM DOCKER CONTAINER
+      # -----------------------------------------------------------
+      # Pulls and starts the Selenium standalone container in
+      # detached mode (-d) so it runs in the background while
+      # Maven executes the tests.
+      #
+      #   --name selenium-node  → gives the container a fixed name
+      #                           so we can stop it by name later
+      #   -p 4444:4444          → maps container port 4444 to the
+      #                           runner's localhost:4444
+      #   --shm-size="2g"       → increases shared memory to 2 GB.
+      #                           Browsers crash without this in
+      #                           Docker because /dev/shm defaults
+      #                           to only 64 MB on Linux containers
+      #   -e SE_NODE_MAX_SESSIONS=5 → allows up to 5 parallel
+      #                           browser sessions in the container
+      #                           matching your TestNG thread-count
+      #
+      # After starting, we wait until the container's /status
+      # endpoint returns HTTP 200 (ready to accept sessions).
+      # The loop retries every 2 seconds for up to 60 seconds.
+      # -----------------------------------------------------------
+      - name: Start Selenium Docker container
+        run: |
+          docker run -d \
+            --name selenium-node \
+            -p 4444:4444 \
+            --shm-size="2g" \
+            -e SE_NODE_MAX_SESSIONS=5 \
+            ${{ env.SELENIUM_IMAGE }}
+
+          echo "Waiting for Selenium container to be ready..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4444/wd/hub/status > /dev/null 2>&1; then
+              echo "Selenium container is ready after ${i} attempts"
+              break
+            fi
+            echo "Attempt $i: not ready yet, retrying in 2s..."
+            sleep 2
+          done
+
+      # -----------------------------------------------------------
+      # STEP 6 — PRINT RUN CONFIGURATION
+      # -----------------------------------------------------------
+      - name: Print run configuration
+        run: |
+          echo "=================================================="
+          echo "  TEST RUN CONFIGURATION (Docker Mode)"
+          echo "=================================================="
+          echo "  Environment       : ${{ inputs.env }}"
+          echo "  Browser           : ${{ inputs.browser }}"
+          echo "  Docker Image      : ${{ env.SELENIUM_IMAGE }}"
+          echo "  XML Suite         : ${{ inputs.xml_file }}"
+          echo "  Headless          : true (always in Docker)"
+          echo "  Incognito         : ${{ inputs.incognito }}"
+          echo "  Remote WebDriver  : http://localhost:4444/wd/hub"
+          echo "=================================================="
+
+      # -----------------------------------------------------------
+      # STEP 7 — RUN TESTS
+      # -----------------------------------------------------------
+      # Same mvn command as the VM-based workflow with two additions:
+      #
+      #   -DSELENIUM_REMOTE_URL=http://localhost:4444/wd/hub
+      #     Tells DriverFactory to create a RemoteWebDriver
+      #     pointing at the Selenium container instead of
+      #     launching a local browser process.
+      #
+      #   -Dheadless=true
+      #     Always forced to true in Docker mode. The Selenium
+      #     standalone images run browsers in headless mode
+      #     internally — there is no display in the container.
+      #
+      # continue-on-error: true → reports are always generated
+      # even when tests fail.
+      # -----------------------------------------------------------
+      - name: Run TestNG suite
+        continue-on-error: true
+        run: |
+          ENV_FLAG=""
+          if [ "${{ inputs.env }}" != "default" ]; then
+            ENV_FLAG="-Denv=${{ inputs.env }}"
+          fi
+
+          mvn clean test $ENV_FLAG \
+            -Dbrowser=${{ inputs.browser }} \
+            -Dheadless=true \
+            -Dincognito=${{ inputs.incognito }} \
+            -DSELENIUM_REMOTE_URL=http://localhost:4444/wd/hub \
+            -Dsurefire.suiteXmlFiles=src/test/resources/testrunners/${{ inputs.xml_file }} \
+            -B
+
+      # -----------------------------------------------------------
+      # STEP 8 — STOP SELENIUM DOCKER CONTAINER
+      # -----------------------------------------------------------
+      # Stops and removes the container after tests finish.
+      # if: always() ensures cleanup even if tests or Maven failed.
+      # -----------------------------------------------------------
+      - name: Stop Selenium Docker container
+        if: always()
+        run: docker rm -f selenium-node || true
+
+      # -----------------------------------------------------------
+      # STEP 9 — GENERATE ALLURE REPORT
+      # -----------------------------------------------------------
+      - name: Generate Allure report
+        if: always()
+        run: mvn allure:report -B
+
+      # -----------------------------------------------------------
+      # STEP 10 — PREPARE GITHUB PAGES CONTENT
+      # -----------------------------------------------------------
+      - name: Prepare GitHub Pages content
+        if: always()
+        run: |
+          mkdir -p reports/testng reports/chaintest reports/allure
+
+          cp -r target/surefire-reports/. reports/testng/ 2>/dev/null || echo "No TestNG report found"
+          cp -r target/chaintest/. reports/chaintest/ 2>/dev/null || echo "No ChainTest report found"
+          cp -r target/site/allure-maven-plugin/. reports/allure/ 2>/dev/null || echo "No Allure report found"
+
+          cat > reports/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Framework2026 Test Reports</title>
+            <style>
+              body { font-family: Arial, sans-serif; max-width: 600px;
+                     margin: 60px auto; background: #f5f5f5; }
+              h1   { color: #333; }
+              .card { background: white; border-radius: 8px;
+                      padding: 20px; margin: 16px 0;
+                      box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+              a    { color: #0066cc; font-size: 18px;
+                     text-decoration: none; font-weight: bold; }
+              a:hover { text-decoration: underline; }
+              p    { color: #666; margin: 6px 0 0; font-size: 14px; }
+            </style>
+          </head>
+          <body>
+            <h1>Framework2026 — Test Reports (Docker)</h1>
+            <div class="card">
+              <a href="allure/index.html">📊 Allure Report</a>
+              <p>Rich dashboard with charts, timeline, and per-test details</p>
+            </div>
+            <div class="card">
+              <a href="chaintest/Index.html">🔗 ChainTest Report</a>
+              <p>Interactive dark theme report with screenshots</p>
+            </div>
+            <div class="card">
+              <a href="testng/index.html">✅ TestNG Report</a>
+              <p>Pass/fail per test method with stack traces</p>
+            </div>
+          </body>
+          </html>
+          EOF
+
+      # -----------------------------------------------------------
+      # STEP 11 — UPLOAD TO GITHUB PAGES
+      # -----------------------------------------------------------
+      - name: Upload reports to GitHub Pages
+        if: always()
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: reports/
+
+  deploy:
+    name: Publish reports to GitHub Pages
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

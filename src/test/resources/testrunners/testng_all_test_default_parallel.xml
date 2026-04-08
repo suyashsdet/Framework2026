@@ -6,6 +6,24 @@
     <listeners>
         <listener class-name="listeners.TestAllureListener"></listener>
         <listener class-name="com.aventstack.chaintest.plugins.ChainTestListener"></listener>
+
+        <!--
+            NEW vs D11: This listener did NOT exist in FrameworkD11.
+
+            AnnotationTransformer implements IAnnotationTransformer.
+            TestNG calls it during the annotation-processing phase
+            (before any test runs) and it programmatically attaches
+            Retry.class as the retryAnalyzer on every @Test method.
+
+            Effect: every failing test is automatically retried up to
+            MAX_TRY times (defined in Retry.java) without needing to
+            write retryAnalyzer = Retry.class on each @Test annotation.
+
+            WHY it must be a <listener> and not just a class:
+            IAnnotationTransformer is a special TestNG SPI — TestNG
+            only invokes transform() if the class is registered as a
+            listener here in the XML (or via @Listeners annotation).
+        -->
         <listener class-name="listeners.AnnotationTransformer"></listener>
     </listeners>
     
@@ -42,7 +60,6 @@
             <class name="tests.SearchResultsPageTest" />
         </classes>
     </test>
-
 
 
 

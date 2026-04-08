@@ -15,11 +15,27 @@ public class RegistrationPageTest extends BaseTest {
         registrationPage = loginPage.goToRegisterPage();
 
     }
+
     @AfterMethod(alwaysRun = true)
     public void resetRegistrationPage() {
-        // null check prevents NullPointerException when @BeforeClass
-        // setup failed (e.g. browser timeout) and registrationPage
-        // was never initialised
+        // -------------------------------------------------------
+        // NEW vs D11: Added a null guard at the top of this method.
+        //
+        // D11 code jumped straight into:
+        //   userComponent = registrationPage.navigateToUserDropDown();
+        //
+        // The problem: if @BeforeClass registrationPageSetup() failed
+        // (e.g. the browser timed out loading the page, or loginPage
+        // itself was null because BaseTest.setup() threw), then
+        // registrationPage is null. Calling .navigateToUserDropDown()
+        // on null throws NullPointerException inside @AfterMethod,
+        // which creates a second fake failure in the report and hides
+        // the real root cause.
+        //
+        // The fix: if registrationPage is null, return immediately.
+        // The test is already marked as failed by TestNG — there is
+        // nothing to reset, so we exit cleanly.
+        // -------------------------------------------------------
         if (registrationPage == null) return;
         userComponent = registrationPage.navigateToUserDropDown();
         logoutPage = userComponent.navigateToLogoutPage();
