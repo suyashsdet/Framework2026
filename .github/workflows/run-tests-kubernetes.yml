@@ -164,13 +164,19 @@ jobs:
           kubectl apply -f k8s/monitoring/prometheus-config.yaml
           kubectl apply -f k8s/monitoring/grafana.yaml
 
-          # Install kube-state-metrics for HPA metrics in Grafana
-          kubectl apply -f https://github.com/kubernetes/kube-state-metrics/releases/download/v2.12.0/kube-state-metrics-deployment.yaml 2>/dev/null || true
+          # Install kube-state-metrics properly
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/kube-state-metrics/v2.12.0/examples/standard/serviceaccount.yaml 2>/dev/null || true
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/kube-state-metrics/v2.12.0/examples/standard/clusterrole.yaml 2>/dev/null || true
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/kube-state-metrics/v2.12.0/examples/standard/clusterrolebinding.yaml 2>/dev/null || true
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/kube-state-metrics/v2.12.0/examples/standard/deployment.yaml 2>/dev/null || true
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/kube-state-metrics/v2.12.0/examples/standard/service.yaml 2>/dev/null || true
 
           echo "Waiting for Prometheus..."
           kubectl rollout status deployment/prometheus -n monitoring --timeout=60s
           echo "Waiting for Grafana..."
           kubectl rollout status deployment/grafana -n monitoring --timeout=60s
+          echo "Waiting for kube-state-metrics..."
+          kubectl rollout status deployment/kube-state-metrics -n kube-system --timeout=60s || true
           echo "Monitoring stack ready"
 
       # --------------------------------------------------------
@@ -329,10 +335,14 @@ jobs:
 
           RUN_TIME=$(date '+%Y-%m-%d %H:%M:%S UTC')
 
+          # Wait for Prometheus to scrape kube-state-metrics
+          echo "Waiting 30s for Prometheus to scrape metrics..."
+          sleep 30
+
           # Capture Prometheus metrics
-          PROM_HPA_CHROME=$(curl -s "http://localhost:9090/api/v1/query?query=kube_horizontalpodautoscaler_status_current_replicas{namespace='selenium-grid',horizontalpodautoscaler='hpa-grid-node-chrome'}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['result'][0]['value'][1] if d['data']['result'] else 'N/A')" 2>/dev/null || echo "N/A")
-          PROM_HPA_FIREFOX=$(curl -s "http://localhost:9090/api/v1/query?query=kube_horizontalpodautoscaler_status_current_replicas{namespace='selenium-grid',horizontalpodautoscaler='hpa-grid-node-firefox'}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['result'][0]['value'][1] if d['data']['result'] else 'N/A')" 2>/dev/null || echo "N/A")
-          PROM_HPA_EDGE=$(curl -s "http://localhost:9090/api/v1/query?query=kube_horizontalpodautoscaler_status_current_replicas{namespace='selenium-grid',horizontalpodautoscaler='hpa-grid-node-edge'}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['result'][0]['value'][1] if d['data']['result'] else 'N/A')" 2>/dev/null || echo "N/A")
+          PROM_HPA_CHROME=$(curl -s "http://localhost:9090/api/v1/query?query=kube_horizontalpodautoscaler_status_current_replicas%7Bnamespace%3D%22selenium-grid%22%2Chorizontalpodautoscaler%3D%22hpa-grid-node-chrome%22%7D" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['result'][0]['value'][1] if d['data']['result'] else 'N/A')" 2>/dev/null || echo "N/A")
+          PROM_HPA_FIREFOX=$(curl -s "http://localhost:9090/api/v1/query?query=kube_horizontalpodautoscaler_status_current_replicas%7Bnamespace%3D%22selenium-grid%22%2Chorizontalpodautoscaler%3D%22hpa-grid-node-firefox%22%7D" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['result'][0]['value'][1] if d['data']['result'] else 'N/A')" 2>/dev/null || echo "N/A")
+          PROM_HPA_EDGE=$(curl -s "http://localhost:9090/api/v1/query?query=kube_horizontalpodautoscaler_status_current_replicas%7Bnamespace%3D%22selenium-grid%22%2Chorizontalpodautoscaler%3D%22hpa-grid-node-edge%22%7D" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['result'][0]['value'][1] if d['data']['result'] else 'N/A')" 2>/dev/null || echo "N/A")
           PROM_TARGETS=$(curl -s http://localhost:9090/api/v1/targets 2>/dev/null || echo '{}')
 
           cat > reports/prometheus.html << PROMEOF

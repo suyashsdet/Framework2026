@@ -40,7 +40,7 @@ data:
       # Scrape kube-state-metrics for HPA and Deployment metrics
       - job_name: 'kube-state-metrics'
         static_configs:
-          - targets: ['kube-state-metrics.monitoring.svc.cluster.local:8080']
+          - targets: ['kube-state-metrics.kube-system.svc.cluster.local:8080']
 
       # Scrape metrics-server via kube API
       - job_name: 'kubernetes-nodes'
