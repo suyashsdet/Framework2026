@@ -347,15 +347,15 @@ jobs:
               <h2>Scaling Flow — Pods per Browser</h2>
               <div class="flow">
                 <div class="flow-box before">
-                  <div class="num">1</div>
-                  <div class="txt">Pod BEFORE tests</div>
-                  <div class="txt">1 slot available</div>
+                  <div class="num">2</div>
+                  <div class="txt">Pods BEFORE tests</div>
+                  <div class="txt">2 slots available</div>
                 </div>
                 <div class="flow-arrow">→</div>
                 <div class="flow-box">
                   <div class="num" style="color:#d29922">5</div>
                   <div class="txt">Threads needed</div>
-                  <div class="txt">CPU spikes above 150%</div>
+                  <div class="txt">Memory spikes above 80%</div>
                 </div>
                 <div class="flow-arrow">→</div>
                 <div class="flow-box after">
@@ -373,19 +373,19 @@ jobs:
                   <div class="browser">🟢 Chrome</div>
                   <div class="value">${CHROME_REPLICAS}</div>
                   <div class="label">pods scaled to</div>
-                  <div class="label" style="margin-top:8px">CPU: ${CHROME_CPU}% / 150% threshold</div>
+                  <div class="label" style="margin-top:8px">Memory: ${CHROME_CPU}% / 80% threshold</div>
                 </div>
                 <div class="card green">
                   <div class="browser">🦊 Firefox</div>
                   <div class="value">${FIREFOX_REPLICAS}</div>
                   <div class="label">pods scaled to</div>
-                  <div class="label" style="margin-top:8px">CPU: ${FIREFOX_CPU}% / 150% threshold</div>
+                  <div class="label" style="margin-top:8px">Memory: ${FIREFOX_CPU}% / 80% threshold</div>
                 </div>
                 <div class="card green">
                   <div class="browser">🔵 Edge</div>
                   <div class="value">${EDGE_REPLICAS}</div>
                   <div class="label">pods scaled to</div>
-                  <div class="label" style="margin-top:8px">CPU: ${EDGE_CPU}% / 150% threshold</div>
+                  <div class="label" style="margin-top:8px">Memory: ${EDGE_CPU}% / 80% threshold</div>
                 </div>
               </div>
             </div>
@@ -407,8 +407,8 @@ jobs:
                 <tbody>
                   <tr>
                     <td>🟢 Chrome</td>
-                    <td><span class="badge badge-blue">1</span></td>
-                    <td><span class="badge badge-blue">1</span></td>
+                    <td><span class="badge badge-blue">2</span></td>
+                    <td><span class="badge badge-blue">2</span></td>
                     <td>5</td>
                     <td><span class="badge badge-green">${CHROME_REPLICAS}</span></td>
                     <td><span class="badge badge-green">${CHROME_REPLICAS}</span></td>
@@ -416,8 +416,8 @@ jobs:
                   </tr>
                   <tr>
                     <td>🦊 Firefox</td>
-                    <td><span class="badge badge-blue">1</span></td>
-                    <td><span class="badge badge-blue">1</span></td>
+                    <td><span class="badge badge-blue">2</span></td>
+                    <td><span class="badge badge-blue">2</span></td>
                     <td>5</td>
                     <td><span class="badge badge-green">${FIREFOX_REPLICAS}</span></td>
                     <td><span class="badge badge-green">${FIREFOX_REPLICAS}</span></td>
@@ -425,8 +425,8 @@ jobs:
                   </tr>
                   <tr>
                     <td>🔵 Edge</td>
-                    <td><span class="badge badge-blue">1</span></td>
-                    <td><span class="badge badge-blue">1</span></td>
+                    <td><span class="badge badge-blue">2</span></td>
+                    <td><span class="badge badge-blue">2</span></td>
                     <td>5</td>
                     <td><span class="badge badge-green">${EDGE_REPLICAS}</span></td>
                     <td><span class="badge badge-green">${EDGE_REPLICAS}</span></td>
@@ -456,8 +456,12 @@ jobs:
                   <div class="val">5 pods per browser</div>
                 </div>
                 <div class="info-card">
-                  <div class="key">HPA CPU Threshold</div>
-                  <div class="val">150% average utilization</div>
+                  <div class="key">HPA Metric</div>
+                  <div class="val">Memory utilization</div>
+                </div>
+                <div class="info-card">
+                  <div class="key">HPA Memory Threshold</div>
+                  <div class="val">80% average utilization</div>
                 </div>
                 <div class="info-card">
                   <div class="key">Sessions per Pod</div>
