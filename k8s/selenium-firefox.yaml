@@ -27,7 +27,7 @@ spec:
     spec:
       containers:
         - name: grid-node-firefox
-          image: selenium/node-firefox:4.18.1
+          image: selenium/node-firefox:4.27.0
           env:
             - name: SE_EVENT_BUS_HOST
               value: "grid-hub"
@@ -40,10 +40,10 @@ spec:
           resources:
             requests:
               cpu: "200m"
-              memory: "600Mi"
+              memory: "800Mi"
             limits:
               cpu: "1000m"
-              memory: "2Gi"
+              memory: "3Gi"
           volumeMounts:
             - mountPath: /dev/shm
               name: shared-memory
@@ -51,4 +51,4 @@ spec:
         - name: shared-memory
           emptyDir:
             medium: Memory
-            sizeLimit: 2Gi
+            sizeLimit: 3Gi
