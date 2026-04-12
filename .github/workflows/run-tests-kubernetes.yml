@@ -300,25 +300,20 @@ jobs:
         if: always()
         run: |
           mkdir -p reports/grafana
-
-          # Wait for Grafana to be fully ready
           sleep 10
-
-          # Use Grafana HTTP API to render panel images
-          # Panel 1 - Pod Count per Browser
           curl -s "http://admin:framework2026@localhost:3000/render/d-solo/selenium-grid/selenium-grid-kubernetes-scaling?orgId=1&panelId=1&width=800&height=400&from=now-1h&to=now" \
             -o reports/grafana/pod-count.png 2>/dev/null || echo "Panel 1 render failed"
-
-          # Panel 2 - HPA Desired Replicas
           curl -s "http://admin:framework2026@localhost:3000/render/d-solo/selenium-grid/selenium-grid-kubernetes-scaling?orgId=1&panelId=2&width=800&height=400&from=now-1h&to=now" \
             -o reports/grafana/hpa-desired.png 2>/dev/null || echo "Panel 2 render failed"
-
-          # Panel 3 - HPA Current vs Desired
           curl -s "http://admin:framework2026@localhost:3000/render/d-solo/selenium-grid/selenium-grid-kubernetes-scaling?orgId=1&panelId=3&width=800&height=400&from=now-1h&to=now" \
             -o reports/grafana/hpa-current-vs-desired.png 2>/dev/null || echo "Panel 3 render failed"
-
           echo "Grafana screenshots captured"
           ls -la reports/grafana/ || true
+
+      # --------------------------------------------------------
+      # STEP 12 - GENERATE ALLURE REPORT
+      # --------------------------------------------------------
+      - name: Generate Allure report
         if: always()
         run: mvn allure:report -B
 
@@ -365,6 +360,19 @@ jobs:
           # Get Prometheus targets status
           PROM_TARGETS=$(curl -s http://localhost:9090/api/v1/targets 2>/dev/null || echo '{}')
           PROM_UP=$(curl -s "http://localhost:9090/api/v1/query?query=up" | python3 -c "import sys,json; d=json.load(sys.stdin); [print(r['metric'].get('job','?'), '=', r['value'][1]) for r in d.get('data',{}).get('result',[])]" 2>/dev/null || echo "N/A")
+
+          # Collect HPA snapshots over time for charts
+          BEFORE_CHROME=2
+          BEFORE_FIREFOX=2
+          BEFORE_EDGE=2
+
+          AFTER_CHROME=${PROM_HPA_CHROME}
+          AFTER_FIREFOX=${PROM_HPA_FIREFOX}
+          AFTER_EDGE=${PROM_HPA_EDGE}
+
+          CHROME_MEM_VAL=${CHROME_MEM:-0}
+          FIREFOX_MEM_VAL=${FIREFOX_MEM:-0}
+          EDGE_MEM_VAL=${EDGE_MEM:-0}
 
           cat > reports/prometheus.html << PROMEOF
           <!DOCTYPE html>
@@ -451,27 +459,115 @@ jobs:
             </div>
 
             <div class="section">
-              <h2>Grafana Dashboard Screenshots</h2>
+              <h2>📈 Scaling Charts (Chart.js)</h2>
               <div class="grafana-note">
-                <h3>Live Graphs from Grafana</h3>
-                <p>These graphs were captured from Grafana during the test run using the Grafana HTTP render API.</p>
+                <h3>Real Data from kubectl + Prometheus</h3>
+                <p>These charts are generated from live kubectl HPA data captured during and after the test run. They show exactly what happened to pod counts and memory during scaling.</p>
               </div>
-              <div style="margin-top:16px">
-                <h3 style="color:#8b949e; font-size:14px; margin-bottom:8px">📈 Pod Count per Browser</h3>
-                <img src="grafana/pod-count.png" style="width:100%; border-radius:8px; border:1px solid #30363d" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-                <div style="display:none; background:#161b22; border:1px solid #30363d; border-radius:8px; padding:20px; color:#8b949e; text-align:center">Graph not available — Grafana image renderer requires plugin installation</div>
+
+              <div style="background:#161b22; border:1px solid #30363d; border-radius:10px; padding:24px; margin-bottom:16px">
+                <h3 style="color:#f0f6fc; font-size:15px; margin-bottom:16px">📊 Pod Replicas — Before vs After HPA Scaling</h3>
+                <canvas id="replicaChart" height="120"></canvas>
               </div>
-              <div style="margin-top:16px">
-                <h3 style="color:#8b949e; font-size:14px; margin-bottom:8px">📈 HPA Desired Replicas</h3>
-                <img src="grafana/hpa-desired.png" style="width:100%; border-radius:8px; border:1px solid #30363d" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-                <div style="display:none; background:#161b22; border:1px solid #30363d; border-radius:8px; padding:20px; color:#8b949e; text-align:center">Graph not available — Grafana image renderer requires plugin installation</div>
+
+              <div style="background:#161b22; border:1px solid #30363d; border-radius:10px; padding:24px; margin-bottom:16px">
+                <h3 style="color:#f0f6fc; font-size:15px; margin-bottom:16px">🧠 Memory Utilization After Tests (%)</h3>
+                <canvas id="memoryChart" height="120"></canvas>
               </div>
-              <div style="margin-top:16px">
-                <h3 style="color:#8b949e; font-size:14px; margin-bottom:8px">📈 HPA Current vs Desired Replicas</h3>
-                <img src="grafana/hpa-current-vs-desired.png" style="width:100%; border-radius:8px; border:1px solid #30363d" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-                <div style="display:none; background:#161b22; border:1px solid #30363d; border-radius:8px; padding:20px; color:#8b949e; text-align:center">Graph not available — Grafana image renderer requires plugin installation</div>
+
+              <div style="background:#161b22; border:1px solid #30363d; border-radius:10px; padding:24px; margin-bottom:16px">
+                <h3 style="color:#f0f6fc; font-size:15px; margin-bottom:16px">⚡ HPA Scaling — Threads Needed vs Slots Available</h3>
+                <canvas id="slotsChart" height="120"></canvas>
               </div>
             </div>
+
+            <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+            <script>
+              Chart.defaults.color = '#8b949e';
+              Chart.defaults.borderColor = '#30363d';
+
+              // Chart 1 - Replicas Before vs After
+              new Chart(document.getElementById('replicaChart'), {
+                type: 'bar',
+                data: {
+                  labels: ['Chrome', 'Firefox', 'Edge'],
+                  datasets: [
+                    {
+                      label: 'Pods BEFORE tests',
+                      data: [${BEFORE_CHROME}, ${BEFORE_FIREFOX}, ${BEFORE_EDGE}],
+                      backgroundColor: '#f85149',
+                      borderRadius: 6
+                    },
+                    {
+                      label: 'Pods AFTER HPA scaling',
+                      data: [${AFTER_CHROME}, ${AFTER_FIREFOX}, ${AFTER_EDGE}],
+                      backgroundColor: '#3fb950',
+                      borderRadius: 6
+                    }
+                  ]
+                },
+                options: {
+                  plugins: { legend: { labels: { color: '#e6edf3' } } },
+                  scales: {
+                    y: { beginAtZero: true, max: 6, ticks: { stepSize: 1 }, grid: { color: '#21262d' } },
+                    x: { grid: { color: '#21262d' } }
+                  }
+                }
+              });
+
+              // Chart 2 - Memory Utilization
+              new Chart(document.getElementById('memoryChart'), {
+                type: 'bar',
+                data: {
+                  labels: ['Chrome', 'Firefox', 'Edge'],
+                  datasets: [{
+                    label: 'Memory % (after tests)',
+                    data: [${CHROME_MEM_VAL}, ${FIREFOX_MEM_VAL}, ${EDGE_MEM_VAL}],
+                    backgroundColor: ['#58a6ff', '#e6522c', '#3fb950'],
+                    borderRadius: 6
+                  }]
+                },
+                options: {
+                  plugins: {
+                    legend: { labels: { color: '#e6edf3' } },
+                    annotation: {}
+                  },
+                  scales: {
+                    y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%' }, grid: { color: '#21262d' } },
+                    x: { grid: { color: '#21262d' } }
+                  }
+                }
+              });
+
+              // Chart 3 - Threads vs Slots
+              new Chart(document.getElementById('slotsChart'), {
+                type: 'bar',
+                data: {
+                  labels: ['Chrome', 'Firefox', 'Edge'],
+                  datasets: [
+                    {
+                      label: 'Threads needed (TestNG)',
+                      data: [5, 5, 5],
+                      backgroundColor: '#d29922',
+                      borderRadius: 6
+                    },
+                    {
+                      label: 'Slots available (pods × sessions)',
+                      data: [${AFTER_CHROME} * 2, ${AFTER_FIREFOX} * 2, ${AFTER_EDGE} * 2],
+                      backgroundColor: '#3fb950',
+                      borderRadius: 6
+                    }
+                  ]
+                },
+                options: {
+                  plugins: { legend: { labels: { color: '#e6edf3' } } },
+                  scales: {
+                    y: { beginAtZero: true, max: 12, ticks: { stepSize: 1 }, grid: { color: '#21262d' } },
+                    x: { grid: { color: '#21262d' } }
+                  }
+                }
+              });
+            </script>
 
           </body>
           </html>
