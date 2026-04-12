@@ -36,7 +36,7 @@ spec:
             - name: SE_EVENT_BUS_SUBSCRIBE_PORT
               value: "4443"
             - name: SE_NODE_MAX_SESSIONS
-              value: "1"
+              value: "2"
           resources:
             requests:
               cpu: "200m"
