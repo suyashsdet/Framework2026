@@ -150,8 +150,21 @@ jobs:
           kubectl get pods -n selenium-grid -o wide
 
       # --------------------------------------------------------
-      # STEP 7 - WAIT FOR ALL PODS TO BE READY
+      # STEP 6b - INSTALL METRICS SERVER
       # --------------------------------------------------------
+      # HPA needs metrics-server to read CPU usage per pod.
+      # --kubelet-insecure-tls is required for kind clusters
+      # because kind uses self-signed certificates.
+      # --------------------------------------------------------
+      - name: Install metrics-server for HPA
+        run: |
+          kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+          kubectl patch deployment metrics-server -n kube-system \
+            --type='json' \
+            -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+          kubectl wait --for=condition=Ready pods -l k8s-app=metrics-server \
+            -n kube-system --timeout=60s
+          echo "Metrics server ready"
       # kubectl rollout status blocks until the Deployment
       # reports all replicas are Running and Ready.
       # --timeout=120s means if pods are not ready in 2 minutes,
@@ -208,6 +221,10 @@ jobs:
           echo "  Firefox pods  : 1 pod x 1 session = 1 slot (HPA scales to 5)"
           echo "  Edge pods     : 1 pod x 1 session = 1 slot (HPA scales to 5)"
           echo "=================================================="
+          echo "  BEFORE TESTS - Pod count:"
+          kubectl get pods -n selenium-grid
+          echo "  BEFORE TESTS - HPA state:"
+          kubectl get hpa -n selenium-grid
 
       # --------------------------------------------------------
       # STEP 10 - RUN TESTS
@@ -241,12 +258,12 @@ jobs:
       - name: Print Selenium Hub logs
         if: always()
         run: |
+          echo "=== AFTER TESTS - Pod count ==="
+          kubectl get pods -n selenium-grid -o wide || true
+          echo "=== AFTER TESTS - HPA state (shows if scaling happened) ==="
+          kubectl get hpa -n selenium-grid || true
           echo "=== Selenium Hub Logs ==="
           kubectl logs deployment/grid-hub -n selenium-grid --tail=50 || true
-          echo "=== Pod Status ==="
-          kubectl get pods -n selenium-grid -o wide || true
-          echo "=== HPA Status ==="
-          kubectl get hpa -n selenium-grid || true
 
       # --------------------------------------------------------
       # STEP 12 - GENERATE ALLURE REPORT
