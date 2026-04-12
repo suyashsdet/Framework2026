@@ -1,0 +1,331 @@
+name: Run Tests - Kubernetes (Selenium Grid)
+
+# ============================================================
+# WHAT THIS WORKFLOW DOES:
+#   Spins up a real Kubernetes cluster on the GitHub runner
+#   using "kind" (Kubernetes IN Docker), deploys a full
+#   Selenium Grid (Hub + Chrome/Firefox/Edge nodes) as k8s
+#   Deployments and Services, then runs the TestNG suite
+#   against the Grid via RemoteWebDriver.
+#
+# WHY KUBERNETES INSTEAD OF PLAIN DOCKER:
+#   - Docker Compose runs containers on ONE machine
+#   - Kubernetes orchestrates containers across MANY nodes
+#   - k8s gives you: auto-healing, scaling, rolling updates
+#   - replicas: 2 per browser = 2 pods per browser running
+#     simultaneously, each handling up to 5 sessions
+#   - If a browser pod crashes, k8s restarts it automatically
+#   - This is how real enterprise Selenium Grids are run
+#
+# HOW IT WORKS:
+#   1. kind creates a local k8s cluster inside Docker on the runner
+#   2. kubectl applies all 4 manifests from the k8s/ folder:
+#        selenium-hub.yaml     → Hub Deployment + NodePort Service
+#        selenium-chrome.yaml  → 2 Chrome node pods
+#        selenium-firefox.yaml → 2 Firefox node pods
+#        selenium-edge.yaml    → 2 Edge node pods
+#   3. Workflow waits for all pods to reach Running state
+#   4. kubectl port-forward exposes Hub port 4444 to localhost
+#   5. Maven runs tests with -DSELENIUM_REMOTE_URL pointing
+#      at the Hub — DriverFactory creates RemoteWebDriver
+#   6. kind cluster is deleted after tests finish
+# ============================================================
+
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: "Environment to run tests on"
+        type: choice
+        options:
+          - default
+          - dev
+          - qa
+          - stage
+          - uat
+        default: default
+
+      xml_file:
+        description: "TestNG XML suite to run"
+        type: choice
+        options:
+          - testng_all_test_default_parallel_multi_browser.xml
+          - testng_all_test_default_sequential_multi_browser.xml
+        default: testng_all_test_default_parallel_multi_browser.xml
+
+      incognito:
+        description: "Run browsers in incognito mode"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  test:
+    name: >
+      Tests (Kubernetes) | ENV=${{ inputs.env }} | ${{ inputs.xml_file }}
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # --------------------------------------------------------
+      # STEP 1 - CHECKOUT
+      # --------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # --------------------------------------------------------
+      # STEP 2 - SET UP JAVA 24
+      # --------------------------------------------------------
+      - name: Set up Java 24
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "24"
+
+      # --------------------------------------------------------
+      # STEP 3 - CACHE MAVEN DEPENDENCIES
+      # --------------------------------------------------------
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      # --------------------------------------------------------
+      # STEP 4 - INSTALL KIND (Kubernetes IN Docker)
+      # --------------------------------------------------------
+      # kind lets you run a full Kubernetes cluster locally
+      # using Docker containers as the cluster nodes.
+      # Every GitHub ubuntu-latest runner has Docker pre-installed
+      # so kind works out of the box — no VM or cloud needed.
+      # --------------------------------------------------------
+      - name: Install kind
+        run: |
+          curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.23.0/kind-linux-amd64
+          chmod +x ./kind
+          sudo mv ./kind /usr/local/bin/kind
+          kind version
+
+      # --------------------------------------------------------
+      # STEP 5 - CREATE KUBERNETES CLUSTER
+      # --------------------------------------------------------
+      # Creates a single-node k8s cluster named "selenium-grid".
+      # kind spins this up as a Docker container acting as both
+      # the control plane and worker node.
+      # --------------------------------------------------------
+      - name: Create Kubernetes cluster with kind
+        run: |
+          kind create cluster --name selenium-grid --wait 60s
+          kubectl cluster-info --context kind-selenium-grid
+          kubectl get nodes
+
+      # --------------------------------------------------------
+      # STEP 6 - DEPLOY SELENIUM GRID TO KUBERNETES
+      # --------------------------------------------------------
+      # Applies all 4 manifests from the k8s/ folder:
+      #   selenium-hub.yaml     → Hub pod + NodePort Service
+      #   selenium-chrome.yaml  → 2 Chrome node pods
+      #   selenium-firefox.yaml → 2 Firefox node pods
+      #   selenium-edge.yaml    → 2 Edge node pods
+      #
+      # kubectl apply is idempotent — safe to run multiple times.
+      # --------------------------------------------------------
+      - name: Deploy Selenium Grid to Kubernetes
+        run: |
+          kubectl apply -f k8s/selenium-hub.yaml
+          kubectl apply -f k8s/selenium-chrome.yaml
+          kubectl apply -f k8s/selenium-firefox.yaml
+          kubectl apply -f k8s/selenium-edge.yaml
+          echo "All manifests applied. Listing all pods:"
+          kubectl get pods -o wide
+
+      # --------------------------------------------------------
+      # STEP 7 - WAIT FOR ALL PODS TO BE READY
+      # --------------------------------------------------------
+      # kubectl rollout status blocks until the Deployment
+      # reports all replicas are Running and Ready.
+      # --timeout=120s means if pods are not ready in 2 minutes,
+      # the step fails with a clear error message.
+      # --------------------------------------------------------
+      - name: Wait for all Selenium pods to be ready
+        run: |
+          echo "Waiting for Hub..."
+          kubectl rollout status deployment/selenium-hub --timeout=120s
+
+          echo "Waiting for Chrome nodes..."
+          kubectl rollout status deployment/selenium-chrome --timeout=120s
+
+          echo "Waiting for Firefox nodes..."
+          kubectl rollout status deployment/selenium-firefox --timeout=120s
+
+          echo "Waiting for Edge nodes..."
+          kubectl rollout status deployment/selenium-edge --timeout=120s
+
+          echo "All pods are ready:"
+          kubectl get pods -o wide
+
+      # --------------------------------------------------------
+      # STEP 8 - PORT FORWARD HUB TO LOCALHOST
+      # --------------------------------------------------------
+      # The Hub Service is NodePort 30444 inside the cluster.
+      # kubectl port-forward maps it to localhost:4444 on the
+      # runner so Maven can reach it at http://localhost:4444.
+      # Running in background (&) so the step does not block.
+      # Sleep 5 gives port-forward time to establish.
+      # --------------------------------------------------------
+      - name: Port-forward Selenium Hub to localhost:4444
+        run: |
+          kubectl port-forward service/selenium-hub 4444:4444 &
+          sleep 5
+          echo "Hub status:"
+          curl -s http://localhost:4444/wd/hub/status | python3 -m json.tool || true
+
+      # --------------------------------------------------------
+      # STEP 9 - PRINT RUN CONFIGURATION
+      # --------------------------------------------------------
+      - name: Print run configuration
+        run: |
+          echo "=================================================="
+          echo "  TEST RUN CONFIGURATION (Kubernetes Mode)"
+          echo "=================================================="
+          echo "  Environment   : ${{ inputs.env }}"
+          echo "  Browsers      : Chrome + Firefox + Edge"
+          echo "  XML Suite     : ${{ inputs.xml_file }}"
+          echo "  Headless      : true (always in k8s pods)"
+          echo "  Incognito     : ${{ inputs.incognito }}"
+          echo "  Hub URL       : http://localhost:4444/wd/hub"
+          echo "  Chrome pods   : 2 replicas x 5 sessions = 10 slots"
+          echo "  Firefox pods  : 2 replicas x 5 sessions = 10 slots"
+          echo "  Edge pods     : 2 replicas x 5 sessions = 10 slots"
+          echo "=================================================="
+
+      # --------------------------------------------------------
+      # STEP 10 - RUN TESTS
+      # --------------------------------------------------------
+      # Single SELENIUM_REMOTE_URL points at the Hub.
+      # The Hub routes each session to the correct browser node
+      # based on the browser capability requested by DriverFactory.
+      # -Dheadless=true is mandatory — k8s pods have no display.
+      # --------------------------------------------------------
+      - name: Run TestNG suite against Kubernetes Selenium Grid
+        continue-on-error: true
+        run: |
+          ENV_FLAG=""
+          if [ "${{ inputs.env }}" != "default" ]; then
+            ENV_FLAG="-Denv=${{ inputs.env }}"
+          fi
+
+          mvn clean test $ENV_FLAG \
+            -Dheadless=true \
+            -Dincognito=${{ inputs.incognito }} \
+            -DSELENIUM_REMOTE_URL=http://localhost:4444/wd/hub \
+            -Dsurefire.suiteXmlFiles=src/test/resources/testrunners/${{ inputs.xml_file }} \
+            -B
+
+      # --------------------------------------------------------
+      # STEP 11 - PRINT POD LOGS ON FAILURE (DEBUG)
+      # --------------------------------------------------------
+      # If tests fail, print Hub logs so you can see what
+      # happened inside the cluster without SSH access.
+      # --------------------------------------------------------
+      - name: Print Selenium Hub logs
+        if: always()
+        run: |
+          echo "=== Selenium Hub Logs ==="
+          kubectl logs deployment/selenium-hub --tail=50 || true
+          echo "=== Pod Status ==="
+          kubectl get pods -o wide || true
+
+      # --------------------------------------------------------
+      # STEP 12 - GENERATE ALLURE REPORT
+      # --------------------------------------------------------
+      - name: Generate Allure report
+        if: always()
+        run: mvn allure:report -B
+
+      # --------------------------------------------------------
+      # STEP 13 - PREPARE GITHUB PAGES CONTENT
+      # --------------------------------------------------------
+      - name: Prepare GitHub Pages content
+        if: always()
+        run: |
+          mkdir -p reports/testng reports/chaintest reports/allure
+
+          cp -r target/surefire-reports/. reports/testng/ 2>/dev/null || echo "No TestNG report"
+          cp -r target/chaintest/. reports/chaintest/ 2>/dev/null || echo "No ChainTest report"
+          cp -r target/site/allure-maven-plugin/. reports/allure/ 2>/dev/null || echo "No Allure report"
+
+          cat > reports/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Framework2026 Test Reports</title>
+            <style>
+              body { font-family: Arial, sans-serif; max-width: 600px;
+                     margin: 60px auto; background: #f5f5f5; }
+              h1   { color: #333; }
+              .card { background: white; border-radius: 8px;
+                      padding: 20px; margin: 16px 0;
+                      box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+              a    { color: #0066cc; font-size: 18px;
+                     text-decoration: none; font-weight: bold; }
+              a:hover { text-decoration: underline; }
+              p    { color: #666; margin: 6px 0 0; font-size: 14px; }
+            </style>
+          </head>
+          <body>
+            <h1>Framework2026 — Test Reports (Kubernetes)</h1>
+            <div class="card">
+              <a href="allure/index.html">📊 Allure Report</a>
+              <p>Rich dashboard with charts, timeline, and per-test details</p>
+            </div>
+            <div class="card">
+              <a href="chaintest/Index.html">🔗 ChainTest Report</a>
+              <p>Interactive dark theme report with screenshots</p>
+            </div>
+            <div class="card">
+              <a href="testng/index.html">✅ TestNG Report</a>
+              <p>Pass/fail per test method with stack traces</p>
+            </div>
+          </body>
+          </html>
+          EOF
+
+      # --------------------------------------------------------
+      # STEP 14 - UPLOAD TO GITHUB PAGES
+      # --------------------------------------------------------
+      - name: Upload reports to GitHub Pages
+        if: always()
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: reports/
+
+      # --------------------------------------------------------
+      # STEP 15 - DELETE KUBERNETES CLUSTER
+      # --------------------------------------------------------
+      # Always runs — cleans up the kind cluster even if tests
+      # or any earlier step failed.
+      # --------------------------------------------------------
+      - name: Delete Kubernetes cluster
+        if: always()
+        run: kind delete cluster --name selenium-grid || true
+
+  deploy:
+    name: Publish reports to GitHub Pages
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

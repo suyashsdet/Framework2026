@@ -1,0 +1,259 @@
+# ============================================================
+# Argo CD Application : Selenium Grid
+# Project             : Framework2026
+# Author              : Suyash
+# ============================================================
+#
+# ============================================================
+# WHAT IS ARGO CD?
+# ============================================================
+#   Argo CD is a GitOps continuous delivery tool for Kubernetes.
+#   It runs INSIDE your Kubernetes cluster and continuously
+#   watches a Git repository. When it detects a change in your
+#   k8s manifests, it automatically applies them to the cluster.
+#
+#   Think of it this way:
+#     Without Argo CD → you manually run "kubectl apply" every time
+#     With    Argo CD → push to Git → cluster updates itself
+#
+# ============================================================
+# WHAT IS GITOPS?
+# ============================================================
+#   GitOps is a pattern where Git is the SINGLE SOURCE OF TRUTH
+#   for what should be running in your cluster.
+#
+#   The 4 core principles:
+#     1. Declarative  → describe WHAT you want, not HOW to do it
+#                       (your k8s YAML files are declarative)
+#     2. Versioned    → everything is in Git, full history, rollback
+#     3. Pulled       → Argo CD pulls from Git (not pushed by CI)
+#     4. Reconciled   → Argo CD continuously fixes drift
+#
+#   Example of drift:
+#     Someone runs "kubectl delete pod selenium-hub-xxx" manually.
+#     Argo CD detects the cluster no longer matches Git.
+#     Argo CD recreates the pod automatically. Self-healing.
+#
+# ============================================================
+# HOW ARGO CD WORKS WITH THIS PROJECT
+# ============================================================
+#
+#   YOUR GITHUB REPO
+#   └── k8s/
+#       ├── selenium-hub.yaml       ← Hub Deployment + Service
+#       ├── selenium-chrome.yaml    ← Chrome node pods
+#       ├── selenium-firefox.yaml   ← Firefox node pods
+#       └── selenium-edge.yaml      ← Edge node pods
+#          │
+#          │  Argo CD watches this folder
+#          ▼
+#   KUBERNETES CLUSTER
+#   └── namespace: selenium-grid
+#       ├── Deployment: selenium-hub      (1 replica)
+#       ├── Deployment: selenium-chrome   (2 replicas)
+#       ├── Deployment: selenium-firefox  (2 replicas)
+#       ├── Deployment: selenium-edge     (2 replicas)
+#       └── Service:    selenium-hub      (NodePort 30444)
+#
+#   FLOW:
+#     1. You push a change to k8s/selenium-chrome.yaml
+#        (e.g. change replicas from 2 to 4)
+#     2. Argo CD detects the change within 3 minutes (default poll)
+#        or immediately if you configure a Git webhook
+#     3. Argo CD runs "kubectl apply" on your behalf
+#     4. Chrome scales from 2 pods to 4 pods automatically
+#     5. Argo CD UI shows green "Synced" status
+#
+# ============================================================
+# HOW TO USE THIS FILE — STEP BY STEP
+# ============================================================
+#
+# PRE-REQUISITES:
+#   - A running Kubernetes cluster (local: kind/minikube, or cloud: EKS/GKE/AKS)
+#   - kubectl configured to point at your cluster
+#   - Argo CD installed in the cluster (see INSTALL ARGO CD below)
+#
+# -----------------------------------------------------------
+# STEP 1 — INSTALL ARGO CD INTO YOUR CLUSTER
+# -----------------------------------------------------------
+#   Run these commands once:
+#
+#   kubectl create namespace argocd
+#   kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+#
+#   Wait for all Argo CD pods to be running:
+#   kubectl get pods -n argocd -w
+#
+# -----------------------------------------------------------
+# STEP 2 — ACCESS THE ARGO CD UI
+# -----------------------------------------------------------
+#   Port-forward the Argo CD server to your local machine:
+#   kubectl port-forward svc/argocd-server -n argocd 8080:443
+#
+#   Open in browser: https://localhost:8080
+#
+#   Get the initial admin password:
+#   kubectl get secret argocd-initial-admin-secret \
+#     -n argocd \
+#     -o jsonpath="{.data.password}" | base64 -d
+#
+#   Login: username = admin, password = (output from above)
+#
+# -----------------------------------------------------------
+# STEP 3 — UPDATE THE REPO URL BELOW
+# -----------------------------------------------------------
+#   Replace the repoURL value with YOUR GitHub repo URL.
+#   Example: https://github.com/suyashsdet/Framework2026
+#
+# -----------------------------------------------------------
+# STEP 4 — APPLY THIS FILE TO CREATE THE ARGO CD APP
+# -----------------------------------------------------------
+#   kubectl apply -f argocd/selenium-grid-app.yaml
+#
+#   This tells Argo CD: "watch this Git repo and keep the
+#   cluster in sync with the k8s/ folder"
+#
+# -----------------------------------------------------------
+# STEP 5 — WATCH ARGO CD SYNC IN THE UI
+# -----------------------------------------------------------
+#   Open https://localhost:8080
+#   You will see the "selenium-grid" application card.
+#   Status will show:
+#     - "Syncing"  → Argo CD is applying your manifests
+#     - "Synced"   → cluster matches Git exactly (green)
+#     - "OutOfSync"→ cluster differs from Git (needs sync)
+#     - "Healthy"  → all pods are Running and Ready
+#     - "Degraded" → one or more pods are crashing
+#
+# -----------------------------------------------------------
+# STEP 6 — VERIFY SELENIUM GRID IS RUNNING
+# -----------------------------------------------------------
+#   kubectl get pods -n selenium-grid
+#   kubectl get services -n selenium-grid
+#
+#   Port-forward the Hub to test locally:
+#   kubectl port-forward svc/selenium-hub 4444:4444 -n selenium-grid
+#
+#   Open in browser: http://localhost:4444/ui
+#   You should see the Selenium Grid UI with Chrome, Firefox,
+#   and Edge nodes registered and ready.
+#
+# -----------------------------------------------------------
+# STEP 7 — TEST SELF-HEALING (GREAT DEMO FOR INTERVIEWS)
+# -----------------------------------------------------------
+#   While Argo CD is running, manually delete a pod:
+#   kubectl delete pod -l app=selenium-chrome -n selenium-grid
+#
+#   Watch what happens:
+#   kubectl get pods -n selenium-grid -w
+#
+#   Kubernetes restarts the pod (ReplicaSet controller).
+#   If you manually scale down: kubectl scale deployment selenium-chrome --replicas=0
+#   Argo CD detects drift from Git (replicas=2) and scales it back up.
+#   This is GitOps self-healing in action.
+#
+# -----------------------------------------------------------
+# STEP 8 — TRIGGER A SYNC BY PUSHING TO GIT
+# -----------------------------------------------------------
+#   Edit k8s/selenium-chrome.yaml → change replicas: 2 to replicas: 3
+#   git add . && git commit -m "scale chrome to 3 replicas" && git push
+#
+#   Argo CD detects the change and applies it automatically.
+#   kubectl get pods -n selenium-grid → you will see 3 chrome pods.
+#
+# ============================================================
+# WHAT TO SAY IN AN INTERVIEW
+# ============================================================
+#   "I implemented GitOps using Argo CD. My k8s manifests live
+#    in the k8s/ folder of the repo. Argo CD watches that folder
+#    and automatically syncs any changes to the cluster. This means
+#    I never run kubectl apply manually — Git is the source of truth.
+#    If someone manually deletes a pod or changes a deployment,
+#    Argo CD detects the drift and restores the desired state.
+#    I also have a GitHub Actions workflow that uses kind to spin
+#    up a temporary cluster and run the full Selenium Grid for CI."
+#
+# ============================================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  # Name of this Argo CD Application — visible in the Argo CD UI
+  name: selenium-grid
+  # Argo CD Applications must always be created in the argocd namespace
+  namespace: argocd
+  # finalizer ensures Argo CD deletes all k8s resources it created
+  # when you delete this Application object (cascade delete)
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+
+spec:
+
+  # ----------------------------------------------------------
+  # PROJECT
+  # "default" is the built-in Argo CD project that allows
+  # deploying to any namespace. In production you would create
+  # a dedicated project with restricted permissions.
+  # ----------------------------------------------------------
+  project: default
+
+  # ----------------------------------------------------------
+  # SOURCE
+  # Tells Argo CD WHERE to read the k8s manifests from.
+  # ----------------------------------------------------------
+  source:
+    # Your GitHub repository URL — UPDATE THIS to your repo
+    repoURL: https://github.com/suyashsdet/Framework2026.git
+
+    # Branch to watch. Argo CD will sync whenever this branch changes.
+    targetRevision: master
+
+    # Folder inside the repo that contains your k8s YAML files.
+    # Argo CD will apply ALL .yaml files found in this folder.
+    path: k8s
+
+  # ----------------------------------------------------------
+  # DESTINATION
+  # Tells Argo CD WHERE to deploy the manifests.
+  # ----------------------------------------------------------
+  destination:
+    # "https://kubernetes.default.svc" means the same cluster
+    # where Argo CD itself is running (in-cluster deployment).
+    # For a remote cluster you would put the cluster API URL here.
+    server: https://kubernetes.default.svc
+
+    # All Selenium Grid resources will be created in this namespace.
+    # Argo CD will create it automatically if it does not exist
+    # because of the CreateNamespace=true sync option below.
+    namespace: selenium-grid
+
+  # ----------------------------------------------------------
+  # SYNC POLICY
+  # Controls HOW and WHEN Argo CD syncs changes.
+  # ----------------------------------------------------------
+  syncPolicy:
+
+    automated:
+      # prune: true → if you DELETE a file from k8s/ in Git,
+      # Argo CD will also DELETE the corresponding resource
+      # from the cluster. Without this, deleted files are ignored.
+      prune: true
+
+      # selfHeal: true → if someone manually changes a resource
+      # in the cluster (kubectl edit, kubectl scale, etc.),
+      # Argo CD detects the drift and restores it to match Git.
+      # This is the self-healing / GitOps enforcement feature.
+      selfHeal: true
+
+    syncOptions:
+      # Automatically creates the "selenium-grid" namespace
+      # if it does not already exist in the cluster.
+      - CreateNamespace=true
+
+  # ----------------------------------------------------------
+  # HEALTH CHECK BEHAVIOUR
+  # Argo CD has built-in health checks for Deployments.
+  # It will show "Healthy" only when all pods are Running
+  # and all replicas are Available — not just when the
+  # manifest is applied.
+  # ----------------------------------------------------------
