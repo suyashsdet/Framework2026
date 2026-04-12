@@ -296,10 +296,29 @@ jobs:
           echo "=== Selenium Hub Logs ==="
           kubectl logs deployment/grid-hub -n selenium-grid --tail=50 || true
 
-      # --------------------------------------------------------
-      # STEP 12 - GENERATE ALLURE REPORT
-      # --------------------------------------------------------
-      - name: Generate Allure report
+      - name: Capture Grafana dashboard screenshots
+        if: always()
+        run: |
+          mkdir -p reports/grafana
+
+          # Wait for Grafana to be fully ready
+          sleep 10
+
+          # Use Grafana HTTP API to render panel images
+          # Panel 1 - Pod Count per Browser
+          curl -s "http://admin:framework2026@localhost:3000/render/d-solo/selenium-grid/selenium-grid-kubernetes-scaling?orgId=1&panelId=1&width=800&height=400&from=now-1h&to=now" \
+            -o reports/grafana/pod-count.png 2>/dev/null || echo "Panel 1 render failed"
+
+          # Panel 2 - HPA Desired Replicas
+          curl -s "http://admin:framework2026@localhost:3000/render/d-solo/selenium-grid/selenium-grid-kubernetes-scaling?orgId=1&panelId=2&width=800&height=400&from=now-1h&to=now" \
+            -o reports/grafana/hpa-desired.png 2>/dev/null || echo "Panel 2 render failed"
+
+          # Panel 3 - HPA Current vs Desired
+          curl -s "http://admin:framework2026@localhost:3000/render/d-solo/selenium-grid/selenium-grid-kubernetes-scaling?orgId=1&panelId=3&width=800&height=400&from=now-1h&to=now" \
+            -o reports/grafana/hpa-current-vs-desired.png 2>/dev/null || echo "Panel 3 render failed"
+
+          echo "Grafana screenshots captured"
+          ls -la reports/grafana/ || true
         if: always()
         run: mvn allure:report -B
 
@@ -432,19 +451,25 @@ jobs:
             </div>
 
             <div class="section">
-              <h2>Grafana Dashboard</h2>
+              <h2>Grafana Dashboard Screenshots</h2>
               <div class="grafana-note">
-                <h3>What Grafana Shows</h3>
-                <p>
-                  A pre-built Grafana dashboard was deployed with 5 panels:<br><br>
-                  📈 <strong>Pod Count per Browser</strong> — time-series showing 1→5→1 scaling<br>
-                  📈 <strong>HPA Desired Replicas</strong> — when HPA decided to scale<br>
-                  📈 <strong>HPA Current vs Desired</strong> — lag between decision and actual scaling<br>
-                  🔢 <strong>Total Running Pods</strong> — live count stat panel<br>
-                  🔢 <strong>HPA Max Replicas</strong> — configured maximum per browser<br><br>
-                  Grafana was accessible at <strong>http://localhost:3000</strong> during the run.<br>
-                  Username: <strong>admin</strong> | Password: <strong>framework2026</strong>
-                </p>
+                <h3>Live Graphs from Grafana</h3>
+                <p>These graphs were captured from Grafana during the test run using the Grafana HTTP render API.</p>
+              </div>
+              <div style="margin-top:16px">
+                <h3 style="color:#8b949e; font-size:14px; margin-bottom:8px">📈 Pod Count per Browser</h3>
+                <img src="grafana/pod-count.png" style="width:100%; border-radius:8px; border:1px solid #30363d" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+                <div style="display:none; background:#161b22; border:1px solid #30363d; border-radius:8px; padding:20px; color:#8b949e; text-align:center">Graph not available — Grafana image renderer requires plugin installation</div>
+              </div>
+              <div style="margin-top:16px">
+                <h3 style="color:#8b949e; font-size:14px; margin-bottom:8px">📈 HPA Desired Replicas</h3>
+                <img src="grafana/hpa-desired.png" style="width:100%; border-radius:8px; border:1px solid #30363d" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+                <div style="display:none; background:#161b22; border:1px solid #30363d; border-radius:8px; padding:20px; color:#8b949e; text-align:center">Graph not available — Grafana image renderer requires plugin installation</div>
+              </div>
+              <div style="margin-top:16px">
+                <h3 style="color:#8b949e; font-size:14px; margin-bottom:8px">📈 HPA Current vs Desired Replicas</h3>
+                <img src="grafana/hpa-current-vs-desired.png" style="width:100%; border-radius:8px; border:1px solid #30363d" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+                <div style="display:none; background:#161b22; border:1px solid #30363d; border-radius:8px; padding:20px; color:#8b949e; text-align:center">Graph not available — Grafana image renderer requires plugin installation</div>
               </div>
             </div>
 
