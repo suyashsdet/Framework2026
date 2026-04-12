@@ -163,20 +163,10 @@ jobs:
           sleep 3
           kubectl apply -f k8s/monitoring/prometheus-config.yaml
           kubectl apply -f k8s/monitoring/grafana.yaml
-
-          # Install kube-state-metrics properly
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes/kube-state-metrics/v2.12.0/examples/standard/serviceaccount.yaml 2>/dev/null || true
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes/kube-state-metrics/v2.12.0/examples/standard/clusterrole.yaml 2>/dev/null || true
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes/kube-state-metrics/v2.12.0/examples/standard/clusterrolebinding.yaml 2>/dev/null || true
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes/kube-state-metrics/v2.12.0/examples/standard/deployment.yaml 2>/dev/null || true
-          kubectl apply -f https://raw.githubusercontent.com/kubernetes/kube-state-metrics/v2.12.0/examples/standard/service.yaml 2>/dev/null || true
-
           echo "Waiting for Prometheus..."
           kubectl rollout status deployment/prometheus -n monitoring --timeout=60s
           echo "Waiting for Grafana..."
           kubectl rollout status deployment/grafana -n monitoring --timeout=60s
-          echo "Waiting for kube-state-metrics..."
-          kubectl rollout status deployment/kube-state-metrics -n kube-system --timeout=60s || true
           echo "Monitoring stack ready"
 
       # --------------------------------------------------------
@@ -339,15 +329,23 @@ jobs:
 
           RUN_TIME=$(date '+%Y-%m-%d %H:%M:%S UTC')
 
-          # Wait for Prometheus to scrape kube-state-metrics
+          # Wait for Prometheus to scrape metrics
           echo "Waiting 30s for Prometheus to scrape metrics..."
           sleep 30
 
-          # Capture Prometheus metrics
-          PROM_HPA_CHROME=$(curl -s "http://localhost:9090/api/v1/query?query=kube_horizontalpodautoscaler_status_current_replicas%7Bnamespace%3D%22selenium-grid%22%2Chorizontalpodautoscaler%3D%22hpa-grid-node-chrome%22%7D" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['result'][0]['value'][1] if d['data']['result'] else 'N/A')" 2>/dev/null || echo "N/A")
-          PROM_HPA_FIREFOX=$(curl -s "http://localhost:9090/api/v1/query?query=kube_horizontalpodautoscaler_status_current_replicas%7Bnamespace%3D%22selenium-grid%22%2Chorizontalpodautoscaler%3D%22hpa-grid-node-firefox%22%7D" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['result'][0]['value'][1] if d['data']['result'] else 'N/A')" 2>/dev/null || echo "N/A")
-          PROM_HPA_EDGE=$(curl -s "http://localhost:9090/api/v1/query?query=kube_horizontalpodautoscaler_status_current_replicas%7Bnamespace%3D%22selenium-grid%22%2Chorizontalpodautoscaler%3D%22hpa-grid-node-edge%22%7D" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['result'][0]['value'][1] if d['data']['result'] else 'N/A')" 2>/dev/null || echo "N/A")
+          # Get HPA data directly from kubectl (reliable)
+          PROM_HPA_CHROME=$(kubectl get hpa hpa-grid-node-chrome -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
+          PROM_HPA_FIREFOX=$(kubectl get hpa hpa-grid-node-firefox -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
+          PROM_HPA_EDGE=$(kubectl get hpa hpa-grid-node-edge -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
+
+          # Get memory utilization from HPA status
+          CHROME_MEM=$(kubectl get hpa hpa-grid-node-chrome -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
+          FIREFOX_MEM=$(kubectl get hpa hpa-grid-node-firefox -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
+          EDGE_MEM=$(kubectl get hpa hpa-grid-node-edge -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
+
+          # Get Prometheus targets status
           PROM_TARGETS=$(curl -s http://localhost:9090/api/v1/targets 2>/dev/null || echo '{}')
+          PROM_UP=$(curl -s "http://localhost:9090/api/v1/query?query=up" | python3 -c "import sys,json; d=json.load(sys.stdin); [print(r['metric'].get('job','?'), '=', r['value'][1]) for r in d.get('data',{}).get('result',[])]" 2>/dev/null || echo "N/A")
 
           cat > reports/prometheus.html << PROMEOF
           <!DOCTYPE html>
@@ -398,17 +396,17 @@ jobs:
                 <div class="card">
                   <div class="label">🟢 Chrome Replicas</div>
                   <div class="value">${PROM_HPA_CHROME}</div>
-                  <div class="sub">kube_horizontalpodautoscaler_status_current_replicas</div>
+                  <div class="sub">Memory: ${CHROME_MEM}% / 80% threshold</div>
                 </div>
                 <div class="card">
                   <div class="label">🦊 Firefox Replicas</div>
                   <div class="value">${PROM_HPA_FIREFOX}</div>
-                  <div class="sub">kube_horizontalpodautoscaler_status_current_replicas</div>
+                  <div class="sub">Memory: ${FIREFOX_MEM}% / 60% threshold</div>
                 </div>
                 <div class="card">
                   <div class="label">🔵 Edge Replicas</div>
                   <div class="value">${PROM_HPA_EDGE}</div>
-                  <div class="sub">kube_horizontalpodautoscaler_status_current_replicas</div>
+                  <div class="sub">Memory: ${EDGE_MEM}% / 80% threshold</div>
                 </div>
               </div>
             </div>
