@@ -1,3 +1,9 @@
+# ============================================================
+# HPA — Firefox Browser Nodes
+# ============================================================
+# Same CPU-based scaling strategy as Chrome.
+# See hpa-chrome.yaml for detailed explanation.
+# ============================================================
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -21,7 +27,20 @@ spec:
   metrics:
     - type: Resource
       resource:
-        name: memory
+        name: cpu
         target:
           type: Utilization
-          averageUtilization: 55
+          averageUtilization: 50
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 4
+          periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 4
+          periodSeconds: 30

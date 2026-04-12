@@ -1,3 +1,11 @@
+# ============================================================
+# HPA — Edge Browser Nodes
+# ============================================================
+# FIXED: Previously had NO behavior section, which meant
+# Kubernetes used defaults (5 min stabilization for scale-down).
+# Edge pods would linger 5 minutes after tests finished.
+# Now matches Chrome/Firefox: 30s scale-down stabilization.
+# ============================================================
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -21,7 +29,20 @@ spec:
   metrics:
     - type: Resource
       resource:
-        name: memory
+        name: cpu
         target:
           type: Utilization
-          averageUtilization: 60
+          averageUtilization: 50
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 4
+          periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 4
+          periodSeconds: 30

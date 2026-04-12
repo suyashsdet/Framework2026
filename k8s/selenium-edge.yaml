@@ -1,3 +1,6 @@
+# ============================================================
+# Selenium Grid — Edge Node Deployment
+# ============================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -12,6 +15,7 @@ metadata:
     project: framework2026
     environment: ci
 spec:
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: grid-node-edge
@@ -36,7 +40,7 @@ spec:
             - name: SE_EVENT_BUS_SUBSCRIBE_PORT
               value: "4443"
             - name: SE_NODE_MAX_SESSIONS
-              value: "2"
+              value: "1"
           resources:
             requests:
               cpu: "200m"

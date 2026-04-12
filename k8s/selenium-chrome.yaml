@@ -1,3 +1,12 @@
+# ============================================================
+# Selenium Grid — Chrome Node Deployment
+# ============================================================
+# replicas: 1 → starts with 1 pod (minimal baseline)
+# HPA scales this up when tests create sessions, and back
+# down to 1 when tests finish and CPU drops.
+# SE_NODE_MAX_SESSIONS=1 → 1 session per pod for clean
+# scaling (1 test = 1 pod, HPA math is straightforward).
+# ============================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -12,6 +21,7 @@ metadata:
     project: framework2026
     environment: ci
 spec:
+  replicas: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: grid-node-chrome
@@ -36,7 +46,7 @@ spec:
             - name: SE_EVENT_BUS_SUBSCRIBE_PORT
               value: "4443"
             - name: SE_NODE_MAX_SESSIONS
-              value: "2"
+              value: "1"
           resources:
             requests:
               cpu: "200m"

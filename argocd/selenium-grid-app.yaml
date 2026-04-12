@@ -52,16 +52,18 @@
 #       ├── Deployment: selenium-hub      (1 replica)
 #       ├── Deployment: selenium-chrome   (2 replicas)
 #       ├── Deployment: selenium-firefox  (2 replicas)
-#       ├── Deployment: selenium-edge     (2 replicas)
+#       ├── Deployment: selenium-chrome   (1 replica, HPA scales to 5)
+#       ├── Deployment: selenium-firefox  (1 replica, HPA scales to 5)
+#       ├── Deployment: selenium-edge     (1 replica, HPA scales to 5)
 #       └── Service:    selenium-hub      (NodePort 30444)
 #
 #   FLOW:
 #     1. You push a change to k8s/selenium-chrome.yaml
-#        (e.g. change replicas from 2 to 4)
+#        (e.g. change maxReplicas from 5 to 8)
 #     2. Argo CD detects the change within 3 minutes (default poll)
 #        or immediately if you configure a Git webhook
 #     3. Argo CD runs "kubectl apply" on your behalf
-#     4. Chrome scales from 2 pods to 4 pods automatically
+#     4. HPA picks up the new config and scales accordingly
 #     5. Argo CD UI shows green "Synced" status
 #
 # ============================================================

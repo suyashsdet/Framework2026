@@ -12,8 +12,8 @@ name: Run Tests - Kubernetes (Selenium Grid)
 #   - Docker Compose runs containers on ONE machine
 #   - Kubernetes orchestrates containers across MANY nodes
 #   - k8s gives you: auto-healing, scaling, rolling updates
-#   - replicas: 2 per browser = 2 pods per browser running
-#     simultaneously, each handling up to 5 sessions
+#   - replicas: 1 per browser at start, HPA scales up to 5
+#     during tests, each handling 1 session
 #   - If a browser pod crashes, k8s restarts it automatically
 #   - This is how real enterprise Selenium Grids are run
 #
@@ -21,9 +21,9 @@ name: Run Tests - Kubernetes (Selenium Grid)
 #   1. kind creates a local k8s cluster inside Docker on the runner
 #   2. kubectl applies all 4 manifests from the k8s/ folder:
 #        selenium-hub.yaml     → Hub Deployment + NodePort Service
-#        selenium-chrome.yaml  → 2 Chrome node pods
-#        selenium-firefox.yaml → 2 Firefox node pods
-#        selenium-edge.yaml    → 2 Edge node pods
+#        selenium-chrome.yaml  → 1 Chrome node pod (HPA scales to 5)
+#        selenium-firefox.yaml → 1 Firefox node pod (HPA scales to 5)
+#        selenium-edge.yaml    → 1 Edge node pod (HPA scales to 5)
 #   3. Workflow waits for all pods to reach Running state
 #   4. kubectl port-forward exposes Hub port 4444 to localhost
 #   5. Maven runs tests with -DSELENIUM_REMOTE_URL pointing
@@ -130,9 +130,9 @@ jobs:
       # --------------------------------------------------------
       # Applies all 4 manifests from the k8s/ folder:
       #   selenium-hub.yaml     → Hub pod + NodePort Service
-      #   selenium-chrome.yaml  → 2 Chrome node pods
-      #   selenium-firefox.yaml → 2 Firefox node pods
-      #   selenium-edge.yaml    → 2 Edge node pods
+      #   selenium-chrome.yaml  → 1 Chrome node pod (HPA scales to 5)
+      #   selenium-firefox.yaml → 1 Firefox node pod (HPA scales to 5)
+      #   selenium-edge.yaml    → 1 Edge node pod (HPA scales to 5)
       #
       # kubectl apply is idempotent — safe to run multiple times.
       # --------------------------------------------------------
@@ -213,7 +213,6 @@ jobs:
       # kubectl port-forward maps it to localhost:4444 on the
       # runner so Maven can reach it at http://localhost:4444.
       # Running in background (&) so the step does not block.
-      # Sleep 5 gives port-forward time to establish.
       # --------------------------------------------------------
       - name: Port-forward Selenium Hub to localhost:4444
         run: |
@@ -221,12 +220,76 @@ jobs:
           kubectl port-forward service/prometheus 9090:9090 -n monitoring &
           kubectl port-forward service/grafana 3000:3000 -n monitoring &
           sleep 5
-          echo "Hub status:"
-          curl -s http://localhost:4444/wd/hub/status | python3 -m json.tool || true
           echo "Prometheus status:"
           curl -s http://localhost:9090/-/ready || true
           echo "Grafana status:"
           curl -s http://localhost:3000/api/health || true
+
+      # --------------------------------------------------------
+      # STEP 8b - WAIT FOR ALL BROWSER NODES TO REGISTER
+      # --------------------------------------------------------
+      # WHY THIS STEP EXISTS:
+      #   kubectl rollout status only confirms pods are Running.
+      #   It does NOT mean the browser node has connected to the
+      #   Hub yet — that registration happens after the pod starts
+      #   and can take 10-30 extra seconds.
+      #
+      #   Without this wait, Maven fires immediately, @BeforeClass
+      #   gets a session queued on an unregistered node, the Hub
+      #   times out allocating it, the page never loads, and
+      #   @BeforeClass throws TimeoutException → all @Test methods
+      #   in that class are skipped by TestNG.
+      #
+      #   This loop polls /wd/hub/status every 5 seconds until
+      #   Chrome, Firefox AND Edge each have at least 1 node
+      #   registered with the Hub before Maven is allowed to start.
+      # --------------------------------------------------------
+      - name: Wait for all browser nodes to register with Hub
+        run: |
+          echo "Waiting for Chrome, Firefox and Edge nodes to register with Hub..."
+          for i in {1..60}; do
+            STATUS=$(curl -s http://localhost:4444/wd/hub/status 2>/dev/null || echo '{}')
+            CHROME=$(echo "$STATUS" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    nodes = d['value']['nodes']
+    print(sum(1 for n in nodes if any(s['stereotype'].get('browserName','').lower() == 'chrome' for s in n['slots'])))
+except:
+    print(0)
+" 2>/dev/null || echo 0)
+            FIREFOX=$(echo "$STATUS" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    nodes = d['value']['nodes']
+    print(sum(1 for n in nodes if any(s['stereotype'].get('browserName','').lower() == 'firefox' for s in n['slots'])))
+except:
+    print(0)
+" 2>/dev/null || echo 0)
+            EDGE=$(echo "$STATUS" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    nodes = d['value']['nodes']
+    print(sum(1 for n in nodes if any(s['stereotype'].get('browserName','').lower() == 'microsoftedge' for s in n['slots'])))
+except:
+    print(0)
+" 2>/dev/null || echo 0)
+            echo "Attempt $i — Chrome nodes: $CHROME | Firefox nodes: $FIREFOX | Edge nodes: $EDGE"
+            if [ "$CHROME" -ge 1 ] && [ "$FIREFOX" -ge 1 ] && [ "$EDGE" -ge 1 ]; then
+              echo "All 3 browser types registered. Grid is ready!"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "ERROR: Grid not ready after 5 minutes. Dumping Hub status:"
+              curl -s http://localhost:4444/wd/hub/status | python3 -m json.tool || true
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "Hub status:"
+          curl -s http://localhost:4444/wd/hub/status | python3 -m json.tool || true
 
       # --------------------------------------------------------
       # STEP 9 - PRINT RUN CONFIGURATION
@@ -242,9 +305,9 @@ jobs:
           echo "  Headless      : true (always in k8s pods)"
           echo "  Incognito     : ${{ inputs.incognito }}"
           echo "  Hub URL       : http://localhost:4444/wd/hub"
-          echo "  Chrome pods   : 1 pod x 1 session = 1 slot (HPA scales to 5)"
-          echo "  Firefox pods  : 1 pod x 1 session = 1 slot (HPA scales to 5)"
-          echo "  Edge pods     : 1 pod x 1 session = 1 slot (HPA scales to 5)"
+          echo "  Chrome pods   : starts at 1, HPA scales up to 5 on CPU"
+          echo "  Firefox pods  : starts at 1, HPA scales up to 5 on CPU"
+          echo "  Edge pods     : starts at 1, HPA scales up to 5 on CPU"
           echo "=================================================="
           echo "  BEFORE TESTS - Pod count:"
           kubectl get pods -n selenium-grid
@@ -269,16 +332,16 @@ jobs:
 
           # Start background HPA sampler - captures peak scaling every 15s
           (
-            echo "time,chrome_replicas,firefox_replicas,edge_replicas,chrome_mem,firefox_mem,edge_mem" > /tmp/hpa_samples.csv
+            echo "time,chrome_replicas,firefox_replicas,edge_replicas,chrome_cpu,firefox_cpu,edge_cpu" > /tmp/hpa_samples.csv
             while true; do
               TS=$(date '+%H:%M:%S')
               CR=$(kubectl get hpa hpa-grid-node-chrome -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo 0)
               FR=$(kubectl get hpa hpa-grid-node-firefox -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo 0)
               ER=$(kubectl get hpa hpa-grid-node-edge -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo 0)
-              CM=$(kubectl get hpa hpa-grid-node-chrome -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo 0)
-              FM=$(kubectl get hpa hpa-grid-node-firefox -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo 0)
-              EM=$(kubectl get hpa hpa-grid-node-edge -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo 0)
-              echo "$TS,$CR,$FR,$ER,$CM,$FM,$EM" >> /tmp/hpa_samples.csv
+              CC=$(kubectl get hpa hpa-grid-node-chrome -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo 0)
+              FC=$(kubectl get hpa hpa-grid-node-firefox -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo 0)
+              EC=$(kubectl get hpa hpa-grid-node-edge -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo 0)
+              echo "$TS,$CR,$FR,$ER,$CC,$FC,$EC" >> /tmp/hpa_samples.csv
               sleep 15
             done
           ) &
@@ -374,45 +437,45 @@ jobs:
           PROM_HPA_FIREFOX=$(kubectl get hpa hpa-grid-node-firefox -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
           PROM_HPA_EDGE=$(kubectl get hpa hpa-grid-node-edge -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
 
-          # Get memory utilization from HPA status
-          CHROME_MEM=$(kubectl get hpa hpa-grid-node-chrome -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
-          FIREFOX_MEM=$(kubectl get hpa hpa-grid-node-firefox -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
-          EDGE_MEM=$(kubectl get hpa hpa-grid-node-edge -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
+          # Get CPU utilization from HPA status
+          CHROME_HPA_CPU=$(kubectl get hpa hpa-grid-node-chrome -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
+          FIREFOX_HPA_CPU=$(kubectl get hpa hpa-grid-node-firefox -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
+          EDGE_HPA_CPU=$(kubectl get hpa hpa-grid-node-edge -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
 
           # Get Prometheus targets status
           PROM_TARGETS=$(curl -s http://localhost:9090/api/v1/targets 2>/dev/null || echo '{}')
           PROM_UP=$(curl -s "http://localhost:9090/api/v1/query?query=up" | python3 -c "import sys,json; d=json.load(sys.stdin); [print(r['metric'].get('job','?'), '=', r['value'][1]) for r in d.get('data',{}).get('result',[])]" 2>/dev/null || echo "N/A")
 
           # Read HPA samples captured during test run
-          SAMPLES=$(cat /tmp/hpa_samples.csv 2>/dev/null || echo "time,chrome_replicas,firefox_replicas,edge_replicas,chrome_mem,firefox_mem,edge_mem")
+          SAMPLES=$(cat /tmp/hpa_samples.csv 2>/dev/null || echo "time,chrome_replicas,firefox_replicas,edge_replicas,chrome_cpu,firefox_cpu,edge_cpu")
 
           # Extract peak values from samples
           PEAK_CHROME=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f2 | sort -n | tail -1 || echo "N/A")
           PEAK_FIREFOX=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f3 | sort -n | tail -1 || echo "N/A")
           PEAK_EDGE=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f4 | sort -n | tail -1 || echo "N/A")
-          PEAK_CHROME_MEM=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f5 | sort -n | tail -1 || echo "N/A")
-          PEAK_FIREFOX_MEM=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f6 | sort -n | tail -1 || echo "N/A")
-          PEAK_EDGE_MEM=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f7 | sort -n | tail -1 || echo "N/A")
+          PEAK_CHROME_CPU=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f5 | sort -n | tail -1 || echo "N/A")
+          PEAK_FIREFOX_CPU=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f6 | sort -n | tail -1 || echo "N/A")
+          PEAK_EDGE_CPU=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f7 | sort -n | tail -1 || echo "N/A")
 
           # Build Chart.js timeline data from samples
           TIMELINE_LABELS=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f1 | python3 -c "import sys; data=sys.stdin.read().strip().split('\n'); print(','.join(['\"'+x+'\"' for x in data]))" || echo '"start"')
-          CHROME_DATA=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f2 | tr '\n' ',' | sed 's/,$//' || echo "2")
-          FIREFOX_DATA=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f3 | tr '\n' ',' | sed 's/,$//' || echo "2")
-          EDGE_DATA=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f4 | tr '\n' ',' | sed 's/,$//' || echo "2")
-          CHROME_MEM_DATA=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f5 | tr '\n' ',' | sed 's/,$//' || echo "0")
-          FIREFOX_MEM_DATA=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f6 | tr '\n' ',' | sed 's/,$//' || echo "0")
-          EDGE_MEM_DATA=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f7 | tr '\n' ',' | sed 's/,$//' || echo "0")
+          CHROME_DATA=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f2 | tr '\n' ',' | sed 's/,$//' || echo "1")
+          FIREFOX_DATA=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f3 | tr '\n' ',' | sed 's/,$//' || echo "1")
+          EDGE_DATA=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f4 | tr '\n' ',' | sed 's/,$//' || echo "1")
+          CHROME_CPU_DATA=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f5 | tr '\n' ',' | sed 's/,$//' || echo "0")
+          FIREFOX_CPU_DATA=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f6 | tr '\n' ',' | sed 's/,$//' || echo "0")
+          EDGE_CPU_DATA=$(tail -n +2 /tmp/hpa_samples.csv 2>/dev/null | cut -d',' -f7 | tr '\n' ',' | sed 's/,$//' || echo "0")
 
-          # Current values after tests
-          BEFORE_CHROME=2
-          BEFORE_FIREFOX=2
-          BEFORE_EDGE=2
+          # Current values after tests — starts at 1 (replicas: 1 in deployment)
+          BEFORE_CHROME=1
+          BEFORE_FIREFOX=1
+          BEFORE_EDGE=1
           AFTER_CHROME=${PROM_HPA_CHROME}
           AFTER_FIREFOX=${PROM_HPA_FIREFOX}
           AFTER_EDGE=${PROM_HPA_EDGE}
-          CHROME_MEM_VAL=${CHROME_MEM:-0}
-          FIREFOX_MEM_VAL=${FIREFOX_MEM:-0}
-          EDGE_MEM_VAL=${EDGE_MEM:-0}
+          CHROME_CPU_VAL=${CHROME_HPA_CPU:-0}
+          FIREFOX_CPU_VAL=${FIREFOX_HPA_CPU:-0}
+          EDGE_CPU_VAL=${EDGE_HPA_CPU:-0}
 
           cat > reports/prometheus.html << PROMEOF
           <!DOCTYPE html>
@@ -463,17 +526,17 @@ jobs:
                 <div class="card">
                   <div class="label">🟢 Chrome Replicas</div>
                   <div class="value">${PROM_HPA_CHROME}</div>
-                  <div class="sub">Memory: ${CHROME_MEM}% / 80% threshold</div>
+                  <div class="sub">CPU: ${CHROME_HPA_CPU}% / 50% threshold</div>
                 </div>
                 <div class="card">
                   <div class="label">🦊 Firefox Replicas</div>
                   <div class="value">${PROM_HPA_FIREFOX}</div>
-                  <div class="sub">Memory: ${FIREFOX_MEM}% / 60% threshold</div>
+                  <div class="sub">CPU: ${FIREFOX_HPA_CPU}% / 50% threshold</div>
                 </div>
                 <div class="card">
                   <div class="label">🔵 Edge Replicas</div>
                   <div class="value">${PROM_HPA_EDGE}</div>
-                  <div class="sub">Memory: ${EDGE_MEM}% / 80% threshold</div>
+                  <div class="sub">CPU: ${EDGE_HPA_CPU}% / 50% threshold</div>
                 </div>
               </div>
             </div>
@@ -493,8 +556,8 @@ jobs:
                 <div class="desc">Count of running pods — total grid capacity at any moment</div>
               </div>
               <div class="query-box">
-                <div class="query">container_memory_working_set_bytes{namespace="selenium-grid"}</div>
-                <div class="desc">Memory usage per pod — shows spike that triggered HPA scaling</div>
+                <div class="query">container_cpu_usage_seconds_total{namespace="selenium-grid"}</div>
+                <div class="desc">CPU usage per pod — shows spike that triggered HPA scaling</div>
               </div>
             </div>
 
@@ -502,19 +565,19 @@ jobs:
               <h2>📈 Scaling Charts (Chart.js)</h2>
               <div class="grafana-note">
                 <h3>Real Data from kubectl + Prometheus</h3>
-                <p>These charts are generated from live kubectl HPA data captured during and after the test run. They show exactly what happened to pod counts and memory during scaling.</p>
+                <p>These charts are generated from live kubectl HPA data captured during and after the test run. They show exactly what happened to pod counts and CPU during scaling.</p>
               </div>
 
               <div style="background:#161b22; border:1px solid #30363d; border-radius:10px; padding:24px; margin-bottom:16px">
                 <h3 style="color:#f0f6fc; font-size:15px; margin-bottom:16px">📈 Pod Replicas Timeline — Live scaling during test run</h3>
-                <p style="color:#8b949e; font-size:12px; margin-bottom:12px">Sampled every 15 seconds. Shows exactly when HPA scaled up pods as memory spiked.</p>
+                <p style="color:#8b949e; font-size:12px; margin-bottom:12px">Sampled every 15 seconds. Shows exactly when HPA scaled up pods as CPU spiked.</p>
                 <canvas id="timelineChart" height="120"></canvas>
               </div>
 
               <div style="background:#161b22; border:1px solid #30363d; border-radius:10px; padding:24px; margin-bottom:16px">
-                <h3 style="color:#f0f6fc; font-size:15px; margin-bottom:16px">🧠 Memory Utilization Timeline — What triggered HPA</h3>
-                <p style="color:#8b949e; font-size:12px; margin-bottom:12px">When memory crossed 80% threshold, HPA fired and added pods. HPA threshold line shown in red.</p>
-                <canvas id="memoryTimelineChart" height="120"></canvas>
+                <h3 style="color:#f0f6fc; font-size:15px; margin-bottom:16px">🧠 CPU Utilization Timeline — What triggered HPA</h3>
+                <p style="color:#8b949e; font-size:12px; margin-bottom:12px">When CPU crossed 50% threshold, HPA fired and added pods. HPA threshold line shown in red.</p>
+                <canvas id="cpuTimelineChart" height="120"></canvas>
               </div>
 
               <div style="background:#161b22; border:1px solid #30363d; border-radius:10px; padding:24px; margin-bottom:16px">
@@ -557,22 +620,22 @@ jobs:
                 }
               });
 
-              // Chart 2 - Memory Timeline
-              new Chart(document.getElementById('memoryTimelineChart'), {
+              // Chart 2 - CPU Timeline
+              new Chart(document.getElementById('cpuTimelineChart'), {
                 type: 'line',
                 data: {
                   labels: labels,
                   datasets: [
-                    { label: 'Chrome memory %', data: [${CHROME_MEM_DATA}], borderColor: '#4285f4', backgroundColor: 'rgba(66,133,244,0.1)', tension: 0.3, fill: false, pointRadius: 3 },
-                    { label: 'Firefox memory %', data: [${FIREFOX_MEM_DATA}], borderColor: '#e6522c', backgroundColor: 'rgba(230,82,44,0.1)', tension: 0.3, fill: false, pointRadius: 3 },
-                    { label: 'Edge memory %', data: [${EDGE_MEM_DATA}], borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,0.1)', tension: 0.3, fill: false, pointRadius: 3 },
-                    { label: 'HPA threshold (80%)', data: Array(labels.length).fill(80), borderColor: '#f85149', borderDash: [5,5], pointRadius: 0, fill: false }
+                    { label: 'Chrome CPU %', data: [${CHROME_CPU_DATA}], borderColor: '#4285f4', backgroundColor: 'rgba(66,133,244,0.1)', tension: 0.3, fill: false, pointRadius: 3 },
+                    { label: 'Firefox CPU %', data: [${FIREFOX_CPU_DATA}], borderColor: '#e6522c', backgroundColor: 'rgba(230,82,44,0.1)', tension: 0.3, fill: false, pointRadius: 3 },
+                    { label: 'Edge CPU %', data: [${EDGE_CPU_DATA}], borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,0.1)', tension: 0.3, fill: false, pointRadius: 3 },
+                    { label: 'HPA threshold (50%)', data: Array(labels.length).fill(50), borderColor: '#f85149', borderDash: [5,5], pointRadius: 0, fill: false }
                   ]
                 },
                 options: {
                   plugins: { legend: { labels: { color: '#e6edf3' } } },
                   scales: {
-                    y: { beginAtZero: true, max: 150, ticks: { callback: v => v + '%', color: '#8b949e' }, grid: { color: '#21262d' }, title: { display: true, text: 'Memory %', color: '#8b949e' } },
+                    y: { beginAtZero: true, max: 150, ticks: { callback: v => v + '%', color: '#8b949e' }, grid: { color: '#21262d' }, title: { display: true, text: 'CPU %', color: '#8b949e' } },
                     x: { grid: { color: '#21262d' }, ticks: { color: '#8b949e', maxRotation: 45 } }
                   }
                 }
@@ -585,7 +648,7 @@ jobs:
                   labels: ['Chrome', 'Firefox', 'Edge'],
                   datasets: [
                     { label: 'Pods at start', data: [${BEFORE_CHROME}, ${BEFORE_FIREFOX}, ${BEFORE_EDGE}], backgroundColor: '#f85149', borderRadius: 6 },
-                    { label: 'Peak pods during tests', data: [${PEAK_CHROME:-2}, ${PEAK_FIREFOX:-2}, ${PEAK_EDGE:-2}], backgroundColor: '#3fb950', borderRadius: 6 }
+                    { label: 'Peak pods during tests', data: [${PEAK_CHROME:-1}, ${PEAK_FIREFOX:-1}, ${PEAK_EDGE:-1}], backgroundColor: '#3fb950', borderRadius: 6 }
                   ]
                 },
                 options: {
@@ -604,7 +667,7 @@ jobs:
                   labels: ['Chrome', 'Firefox', 'Edge'],
                   datasets: [
                     { label: 'Threads needed', data: [5, 5, 5], backgroundColor: '#d29922', borderRadius: 6 },
-                    { label: 'Slots at peak (pods × 2 sessions)', data: [${PEAK_CHROME:-2}*2, ${PEAK_FIREFOX:-2}*2, ${PEAK_EDGE:-2}*2], backgroundColor: '#3fb950', borderRadius: 6 }
+                    { label: 'Slots at peak (pods × 1 session)', data: [${PEAK_CHROME:-1}, ${PEAK_FIREFOX:-1}, ${PEAK_EDGE:-1}], backgroundColor: '#3fb950', borderRadius: 6 }
                   ]
                 },
                 options: {
@@ -671,15 +734,15 @@ jobs:
               <h2>Scaling Flow — Pods per Browser</h2>
               <div class="flow">
                 <div class="flow-box before">
-                  <div class="num">2</div>
-                  <div class="txt">Pods BEFORE tests</div>
-                  <div class="txt">2 slots available</div>
+                  <div class="num">1</div>
+                  <div class="txt">Pod BEFORE tests</div>
+                  <div class="txt">1 slot available</div>
                 </div>
                 <div class="flow-arrow">→</div>
                 <div class="flow-box">
                   <div class="num" style="color:#d29922">5</div>
                   <div class="txt">Threads needed</div>
-                  <div class="txt">Memory spikes above 80%</div>
+                  <div class="txt">CPU spikes above 50%</div>
                 </div>
                 <div class="flow-arrow">→</div>
                 <div class="flow-box after">
@@ -697,19 +760,19 @@ jobs:
                   <div class="browser">🟢 Chrome</div>
                   <div class="value">${CHROME_REPLICAS}</div>
                   <div class="label">pods scaled to</div>
-                  <div class="label" style="margin-top:8px">Memory: ${CHROME_CPU}% / 80% threshold</div>
+                  <div class="label" style="margin-top:8px">CPU: ${CHROME_CPU}% / 50% threshold</div>
                 </div>
                 <div class="card green">
                   <div class="browser">🦊 Firefox</div>
                   <div class="value">${FIREFOX_REPLICAS}</div>
                   <div class="label">pods scaled to</div>
-                  <div class="label" style="margin-top:8px">Memory: ${FIREFOX_CPU}% / 80% threshold</div>
+                  <div class="label" style="margin-top:8px">CPU: ${FIREFOX_CPU}% / 50% threshold</div>
                 </div>
                 <div class="card green">
                   <div class="browser">🔵 Edge</div>
                   <div class="value">${EDGE_REPLICAS}</div>
                   <div class="label">pods scaled to</div>
-                  <div class="label" style="margin-top:8px">Memory: ${EDGE_CPU}% / 80% threshold</div>
+                  <div class="label" style="margin-top:8px">CPU: ${EDGE_CPU}% / 50% threshold</div>
                 </div>
               </div>
             </div>
@@ -731,8 +794,8 @@ jobs:
                 <tbody>
                   <tr>
                     <td>🟢 Chrome</td>
-                    <td><span class="badge badge-blue">2</span></td>
-                    <td><span class="badge badge-blue">2</span></td>
+                    <td><span class="badge badge-blue">1</span></td>
+                    <td><span class="badge badge-blue">1</span></td>
                     <td>5</td>
                     <td><span class="badge badge-green">${CHROME_REPLICAS}</span></td>
                     <td><span class="badge badge-green">${CHROME_REPLICAS}</span></td>
@@ -740,8 +803,8 @@ jobs:
                   </tr>
                   <tr>
                     <td>🦊 Firefox</td>
-                    <td><span class="badge badge-blue">2</span></td>
-                    <td><span class="badge badge-blue">2</span></td>
+                    <td><span class="badge badge-blue">1</span></td>
+                    <td><span class="badge badge-blue">1</span></td>
                     <td>5</td>
                     <td><span class="badge badge-green">${FIREFOX_REPLICAS}</span></td>
                     <td><span class="badge badge-green">${FIREFOX_REPLICAS}</span></td>
@@ -749,8 +812,8 @@ jobs:
                   </tr>
                   <tr>
                     <td>🔵 Edge</td>
-                    <td><span class="badge badge-blue">2</span></td>
-                    <td><span class="badge badge-blue">2</span></td>
+                    <td><span class="badge badge-blue">1</span></td>
+                    <td><span class="badge badge-blue">1</span></td>
                     <td>5</td>
                     <td><span class="badge badge-green">${EDGE_REPLICAS}</span></td>
                     <td><span class="badge badge-green">${EDGE_REPLICAS}</span></td>
@@ -781,11 +844,11 @@ jobs:
                 </div>
                 <div class="info-card">
                   <div class="key">HPA Metric</div>
-                  <div class="val">Memory utilization</div>
+                  <div class="val">CPU utilization</div>
                 </div>
                 <div class="info-card">
-                  <div class="key">HPA Memory Threshold</div>
-                  <div class="val">80% average utilization</div>
+                  <div class="key">HPA CPU Threshold</div>
+                  <div class="val">50% average utilization</div>
                 </div>
                 <div class="info-card">
                   <div class="key">Sessions per Pod</div>

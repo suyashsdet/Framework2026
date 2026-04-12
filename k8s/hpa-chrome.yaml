@@ -1,3 +1,28 @@
+# ============================================================
+# HPA — Chrome Browser Nodes
+# ============================================================
+# WHY CPU INSTEAD OF MEMORY:
+#   Memory is a bad scaling metric for browsers because:
+#   - Browsers allocate ~300-500MB at startup even with 0 sessions
+#   - Memory doesn't drop when sessions end (GC is lazy)
+#   - This causes premature scale-up and delayed scale-down
+#
+#   CPU correlates directly with active browser sessions:
+#   - Idle pod = ~5% CPU
+#   - Active session (rendering pages, running JS) = 40-80% CPU
+#   - Session ends = CPU drops immediately
+#   This gives HPA a clean signal to scale up AND down.
+#
+# SCALING BEHAVIOR:
+#   minReplicas: 1  → always 1 pod ready (warm start)
+#   maxReplicas: 5  → can handle 5 parallel Chrome tests
+#   target CPU: 50% → when avg CPU > 50%, add pods
+#
+#   scaleUp:   0s stabilization, up to 4 pods in 15s
+#              (instant reaction when tests start)
+#   scaleDown: 30s stabilization, remove up to 4 pods in 30s
+#              (quick cleanup after tests finish)
+# ============================================================
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -21,7 +46,20 @@ spec:
   metrics:
     - type: Resource
       resource:
-        name: memory
+        name: cpu
         target:
           type: Utilization
-          averageUtilization: 60
+          averageUtilization: 50
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 4
+          periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 4
+          periodSeconds: 30
