@@ -5,7 +5,7 @@ metadata:
   labels:
     app: selenium-firefox
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: selenium-firefox
@@ -25,7 +25,7 @@ spec:
             - name: SE_EVENT_BUS_SUBSCRIBE_PORT
               value: "4443"
             - name: SE_NODE_MAX_SESSIONS
-              value: "2"
+              value: "1"
           resources:
             requests:
               cpu: "500m"
