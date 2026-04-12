@@ -8,15 +8,16 @@
 #   - This causes premature scale-up and delayed scale-down
 #
 #   CPU correlates directly with active browser sessions:
-#   - Idle pod = ~5% CPU
-#   - Active session (rendering pages, running JS) = 40-80% CPU
-#   - Session ends = CPU drops immediately
+#   - Idle Chromium pod = ~40-60% CPU (browser process is heavy)
+#   - Active session (rendering pages, running JS) = 80-100% CPU
+#   - Session ends = CPU drops back to idle baseline
 #   This gives HPA a clean signal to scale up AND down.
 #
 # SCALING BEHAVIOR:
 #   minReplicas: 1  → always 1 pod ready (warm start)
 #   maxReplicas: 5  → can handle 5 parallel Chrome tests
-#   target CPU: 50% → when avg CPU > 50%, add pods
+#   target CPU: 70% → when avg CPU > 70%, add pods
+#   (70% chosen because idle Chromium sits at ~40-60%)
 #
 #   scaleUp:   0s stabilization, up to 4 pods in 15s
 #              (instant reaction when tests start)
@@ -49,7 +50,7 @@ spec:
         name: cpu
         target:
           type: Utilization
-          averageUtilization: 50
+          averageUtilization: 70
   behavior:
     scaleUp:
       stabilizationWindowSeconds: 0
