@@ -16,7 +16,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: grid-node-chrome
-  minReplicas: 1
+  minReplicas: 5
   maxReplicas: 5
   metrics:
     - type: Resource
@@ -24,4 +24,4 @@ spec:
         name: memory
         target:
           type: Utilization
-          averageUtilization: 80
+          averageUtilization: 60
