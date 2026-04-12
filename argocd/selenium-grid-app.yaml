@@ -261,16 +261,16 @@ spec:
   ignoreDifferences:
     - group: apps
       kind: Deployment
-      name: selenium-chrome
+      name: grid-node-chrome
       jsonPointers:
         - /spec/replicas
     - group: apps
       kind: Deployment
-      name: selenium-firefox
+      name: grid-node-firefox
       jsonPointers:
         - /spec/replicas
     - group: apps
       kind: Deployment
-      name: selenium-edge
+      name: grid-node-edge
       jsonPointers:
         - /spec/replicas

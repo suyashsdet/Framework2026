@@ -1,13 +1,21 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: selenium-chrome-hpa
+  name: hpa-grid-node-chrome
   namespace: selenium-grid
+  labels:
+    app.kubernetes.io/name: hpa-grid-node-chrome
+    app.kubernetes.io/component: autoscaler
+    app.kubernetes.io/part-of: selenium-grid
+    app.kubernetes.io/managed-by: argocd
+    browser: chrome
+    project: framework2026
+    environment: ci
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: selenium-chrome
+    name: grid-node-chrome
   minReplicas: 1
   maxReplicas: 5
   metrics:

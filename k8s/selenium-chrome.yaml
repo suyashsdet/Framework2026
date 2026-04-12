@@ -1,24 +1,36 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: selenium-chrome
+  name: grid-node-chrome
+  namespace: selenium-grid
   labels:
-    app: selenium-chrome
+    app.kubernetes.io/name: grid-node-chrome
+    app.kubernetes.io/component: browser-node
+    app.kubernetes.io/part-of: selenium-grid
+    app.kubernetes.io/managed-by: argocd
+    browser: chrome
+    project: framework2026
+    environment: ci
 spec:
   selector:
     matchLabels:
-      app: selenium-chrome
+      app.kubernetes.io/name: grid-node-chrome
   template:
     metadata:
       labels:
-        app: selenium-chrome
+        app.kubernetes.io/name: grid-node-chrome
+        app.kubernetes.io/component: browser-node
+        app.kubernetes.io/part-of: selenium-grid
+        browser: chrome
+        project: framework2026
+        environment: ci
     spec:
       containers:
-        - name: selenium-chrome
+        - name: grid-node-chrome
           image: selenium/node-chrome:4.18.1
           env:
             - name: SE_EVENT_BUS_HOST
-              value: "selenium-hub"
+              value: "grid-hub"
             - name: SE_EVENT_BUS_PUBLISH_PORT
               value: "4442"
             - name: SE_EVENT_BUS_SUBSCRIBE_PORT
@@ -34,9 +46,9 @@ spec:
               memory: "1Gi"
           volumeMounts:
             - mountPath: /dev/shm
-              name: dshm
+              name: shared-memory
       volumes:
-        - name: dshm
+        - name: shared-memory
           emptyDir:
             medium: Memory
             sizeLimit: 2Gi
