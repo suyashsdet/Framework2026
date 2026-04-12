@@ -162,8 +162,7 @@ jobs:
           kubectl patch deployment metrics-server -n kube-system \
             --type='json' \
             -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
-          kubectl wait --for=condition=Ready pods -l k8s-app=metrics-server \
-            -n kube-system --timeout=60s
+          kubectl rollout status deployment/metrics-server -n kube-system --timeout=120s
           echo "Metrics server ready"
       # kubectl rollout status blocks until the Deployment
       # reports all replicas are Running and Ready.
