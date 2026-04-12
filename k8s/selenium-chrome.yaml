@@ -39,11 +39,11 @@ spec:
               value: "1"
           resources:
             requests:
-              cpu: "500m"
-              memory: "512Mi"
+              cpu: "200m"
+              memory: "256Mi"
             limits:
               cpu: "1000m"
-              memory: "1Gi"
+              memory: "2Gi"
           volumeMounts:
             - mountPath: /dev/shm
               name: shared-memory
