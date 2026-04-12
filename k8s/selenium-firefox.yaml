@@ -26,6 +26,13 @@ spec:
               value: "4443"
             - name: SE_NODE_MAX_SESSIONS
               value: "2"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
           volumeMounts:
             - mountPath: /dev/shm
               name: dshm
