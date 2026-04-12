@@ -150,6 +150,29 @@ jobs:
           kubectl get pods -n selenium-grid -o wide
 
       # --------------------------------------------------------
+      # STEP 6b - DEPLOY PROMETHEUS + GRAFANA
+      # --------------------------------------------------------
+      # Deploys monitoring stack into the monitoring namespace.
+      # Prometheus scrapes HPA and pod metrics every 15s.
+      # Grafana visualizes scaling timeline as a dashboard.
+      # kube-state-metrics provides HPA replica count metrics.
+      # --------------------------------------------------------
+      - name: Deploy Prometheus and Grafana monitoring
+        run: |
+          kubectl apply -f k8s/monitoring/prometheus-config.yaml
+          kubectl apply -f k8s/monitoring/prometheus.yaml
+          kubectl apply -f k8s/monitoring/grafana.yaml
+
+          # Install kube-state-metrics for HPA metrics in Grafana
+          kubectl apply -f https://github.com/kubernetes/kube-state-metrics/releases/download/v2.12.0/kube-state-metrics-deployment.yaml 2>/dev/null || true
+
+          echo "Waiting for Prometheus..."
+          kubectl rollout status deployment/prometheus -n monitoring --timeout=60s
+          echo "Waiting for Grafana..."
+          kubectl rollout status deployment/grafana -n monitoring --timeout=60s
+          echo "Monitoring stack ready"
+
+      # --------------------------------------------------------
       # STEP 6b - INSTALL METRICS SERVER
       # --------------------------------------------------------
       # HPA needs metrics-server to read CPU usage per pod.
@@ -198,9 +221,15 @@ jobs:
       - name: Port-forward Selenium Hub to localhost:4444
         run: |
           kubectl port-forward service/grid-hub 4444:4444 -n selenium-grid &
+          kubectl port-forward service/prometheus 9090:9090 -n monitoring &
+          kubectl port-forward service/grafana 3000:3000 -n monitoring &
           sleep 5
           echo "Hub status:"
           curl -s http://localhost:4444/wd/hub/status | python3 -m json.tool || true
+          echo "Prometheus status:"
+          curl -s http://localhost:9090/-/ready || true
+          echo "Grafana status:"
+          curl -s http://localhost:3000/api/health || true
 
       # --------------------------------------------------------
       # STEP 9 - PRINT RUN CONFIGURATION
@@ -263,6 +292,8 @@ jobs:
           kubectl get hpa -n selenium-grid || true
           echo "=== Selenium Hub Logs ==="
           kubectl logs deployment/grid-hub -n selenium-grid --tail=50 || true
+          echo "=== Prometheus Targets ==="
+          curl -s http://localhost:9090/api/v1/targets | python3 -c "import sys,json; d=json.load(sys.stdin); [print(t['labels'].get('job','?'), '-', t['health']) for t in d['data']['activeTargets']]" || true
 
       # --------------------------------------------------------
       # STEP 12 - GENERATE ALLURE REPORT
@@ -296,6 +327,117 @@ jobs:
           EDGE_CPU=$(kubectl get hpa hpa-grid-node-edge -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
 
           RUN_TIME=$(date '+%Y-%m-%d %H:%M:%S UTC')
+
+          # Capture Prometheus metrics
+          PROM_HPA_CHROME=$(curl -s "http://localhost:9090/api/v1/query?query=kube_horizontalpodautoscaler_status_current_replicas{namespace='selenium-grid',horizontalpodautoscaler='hpa-grid-node-chrome'}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['result'][0]['value'][1] if d['data']['result'] else 'N/A')" 2>/dev/null || echo "N/A")
+          PROM_HPA_FIREFOX=$(curl -s "http://localhost:9090/api/v1/query?query=kube_horizontalpodautoscaler_status_current_replicas{namespace='selenium-grid',horizontalpodautoscaler='hpa-grid-node-firefox'}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['result'][0]['value'][1] if d['data']['result'] else 'N/A')" 2>/dev/null || echo "N/A")
+          PROM_HPA_EDGE=$(curl -s "http://localhost:9090/api/v1/query?query=kube_horizontalpodautoscaler_status_current_replicas{namespace='selenium-grid',horizontalpodautoscaler='hpa-grid-node-edge'}" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['data']['result'][0]['value'][1] if d['data']['result'] else 'N/A')" 2>/dev/null || echo "N/A")
+          PROM_TARGETS=$(curl -s http://localhost:9090/api/v1/targets 2>/dev/null || echo '{}')
+
+          cat > reports/prometheus.html << PROMEOF
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <title>Prometheus Metrics - Framework2026</title>
+            <style>
+              * { box-sizing: border-box; margin: 0; padding: 0; }
+              body { font-family: 'Segoe UI', Arial, sans-serif; background: #0d1117; color: #e6edf3; padding: 40px 20px; }
+              h1 { font-size: 28px; color: #e6522c; margin-bottom: 6px; }
+              .subtitle { color: #8b949e; font-size: 14px; margin-bottom: 40px; }
+              .section { margin-bottom: 40px; }
+              h2 { font-size: 18px; color: #f0f6fc; margin-bottom: 16px; border-left: 4px solid #e6522c; padding-left: 12px; }
+              .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+              .card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 24px; text-align: center; }
+              .card .label { font-size: 13px; color: #8b949e; margin-bottom: 8px; }
+              .card .value { font-size: 48px; font-weight: bold; color: #e6522c; }
+              .card .sub { font-size: 12px; color: #8b949e; margin-top: 6px; }
+              .query-box { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; margin-bottom: 12px; }
+              .query-box .query { font-family: monospace; font-size: 13px; color: #79c0ff; margin-bottom: 8px; }
+              .query-box .desc { font-size: 13px; color: #8b949e; }
+              .back { display: inline-block; margin-bottom: 30px; color: #e6522c; text-decoration: none; font-size: 14px; }
+              .back:hover { text-decoration: underline; }
+              .grafana-note { background: #161b22; border: 1px solid #f0883e; border-radius: 10px; padding: 24px; margin-bottom: 24px; }
+              .grafana-note h3 { color: #f0883e; margin-bottom: 8px; }
+              .grafana-note p { color: #8b949e; font-size: 14px; line-height: 1.6; }
+            </style>
+          </head>
+          <body>
+            <a href="index.html" class="back">← Back to Reports</a>
+            <h1>🔥 Prometheus Metrics</h1>
+            <p class="subtitle">Framework2026 · Selenium Grid on Kubernetes · $RUN_TIME</p>
+
+            <div class="section">
+              <div class="grafana-note">
+                <h3>📊 About This Page</h3>
+                <p>Prometheus was deployed inside the Kubernetes cluster during this test run.
+                It scraped HPA and pod metrics every 15 seconds.
+                The values below were captured via Prometheus API after tests completed.
+                In a production setup, Grafana would show these as live time-series graphs
+                with the full scaling timeline from 1 pod → 5 pods → back to 1 pod.</p>
+              </div>
+            </div>
+
+            <div class="section">
+              <h2>HPA Current Replicas (from Prometheus)</h2>
+              <div class="grid3">
+                <div class="card">
+                  <div class="label">🟢 Chrome Replicas</div>
+                  <div class="value">${PROM_HPA_CHROME}</div>
+                  <div class="sub">kube_horizontalpodautoscaler_status_current_replicas</div>
+                </div>
+                <div class="card">
+                  <div class="label">🦊 Firefox Replicas</div>
+                  <div class="value">${PROM_HPA_FIREFOX}</div>
+                  <div class="sub">kube_horizontalpodautoscaler_status_current_replicas</div>
+                </div>
+                <div class="card">
+                  <div class="label">🔵 Edge Replicas</div>
+                  <div class="value">${PROM_HPA_EDGE}</div>
+                  <div class="sub">kube_horizontalpodautoscaler_status_current_replicas</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h2>Prometheus Queries Used</h2>
+              <div class="query-box">
+                <div class="query">kube_horizontalpodautoscaler_status_current_replicas{namespace="selenium-grid"}</div>
+                <div class="desc">Current replica count per HPA — shows scaling in action</div>
+              </div>
+              <div class="query-box">
+                <div class="query">kube_horizontalpodautoscaler_status_desired_replicas{namespace="selenium-grid"}</div>
+                <div class="desc">Desired replica count — what HPA wants vs what exists</div>
+              </div>
+              <div class="query-box">
+                <div class="query">kube_pod_status_phase{namespace="selenium-grid", phase="Running"}</div>
+                <div class="desc">Count of running pods — total grid capacity at any moment</div>
+              </div>
+              <div class="query-box">
+                <div class="query">container_memory_working_set_bytes{namespace="selenium-grid"}</div>
+                <div class="desc">Memory usage per pod — shows spike that triggered HPA scaling</div>
+              </div>
+            </div>
+
+            <div class="section">
+              <h2>Grafana Dashboard</h2>
+              <div class="grafana-note">
+                <h3>What Grafana Shows</h3>
+                <p>
+                  A pre-built Grafana dashboard was deployed with 5 panels:<br><br>
+                  📈 <strong>Pod Count per Browser</strong> — time-series showing 1→5→1 scaling<br>
+                  📈 <strong>HPA Desired Replicas</strong> — when HPA decided to scale<br>
+                  📈 <strong>HPA Current vs Desired</strong> — lag between decision and actual scaling<br>
+                  🔢 <strong>Total Running Pods</strong> — live count stat panel<br>
+                  🔢 <strong>HPA Max Replicas</strong> — configured maximum per browser<br><br>
+                  Grafana was accessible at <strong>http://localhost:3000</strong> during the run.<br>
+                  Username: <strong>admin</strong> | Password: <strong>framework2026</strong>
+                </p>
+              </div>
+            </div>
+
+          </body>
+          </html>
+          PROMEOF
 
           cat > reports/kubernetes.html << HTMLEOF
           <!DOCTYPE html>
@@ -530,6 +672,11 @@ jobs:
                 <div class="icon">✅</div>
                 <div class="title">TestNG Report</div>
                 <div class="desc">Pass/fail per test method with stack traces</div>
+              </a>
+              <a href="prometheus.html" class="card">
+                <div class="icon">🔥</div>
+                <div class="title">Prometheus Metrics</div>
+                <div class="desc">Raw HPA and pod metrics captured during test run</div>
               </a>
             </div>
           </body>
