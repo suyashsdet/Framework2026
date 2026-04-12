@@ -138,12 +138,16 @@ jobs:
       # --------------------------------------------------------
       - name: Deploy Selenium Grid to Kubernetes
         run: |
+          kubectl create namespace selenium-grid --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply -f k8s/selenium-hub.yaml
           kubectl apply -f k8s/selenium-chrome.yaml
           kubectl apply -f k8s/selenium-firefox.yaml
           kubectl apply -f k8s/selenium-edge.yaml
+          kubectl apply -f k8s/hpa-chrome.yaml
+          kubectl apply -f k8s/hpa-firefox.yaml
+          kubectl apply -f k8s/hpa-edge.yaml
           echo "All manifests applied. Listing all pods:"
-          kubectl get pods -o wide
+          kubectl get pods -n selenium-grid -o wide
 
       # --------------------------------------------------------
       # STEP 7 - WAIT FOR ALL PODS TO BE READY
@@ -156,19 +160,19 @@ jobs:
       - name: Wait for all Selenium pods to be ready
         run: |
           echo "Waiting for Hub..."
-          kubectl rollout status deployment/selenium-hub --timeout=120s
+          kubectl rollout status deployment/grid-hub -n selenium-grid --timeout=120s
 
           echo "Waiting for Chrome nodes..."
-          kubectl rollout status deployment/selenium-chrome --timeout=120s
+          kubectl rollout status deployment/grid-node-chrome -n selenium-grid --timeout=120s
 
           echo "Waiting for Firefox nodes..."
-          kubectl rollout status deployment/selenium-firefox --timeout=120s
+          kubectl rollout status deployment/grid-node-firefox -n selenium-grid --timeout=120s
 
           echo "Waiting for Edge nodes..."
-          kubectl rollout status deployment/selenium-edge --timeout=120s
+          kubectl rollout status deployment/grid-node-edge -n selenium-grid --timeout=120s
 
           echo "All pods are ready:"
-          kubectl get pods -o wide
+          kubectl get pods -n selenium-grid -o wide
 
       # --------------------------------------------------------
       # STEP 8 - PORT FORWARD HUB TO LOCALHOST
@@ -181,7 +185,7 @@ jobs:
       # --------------------------------------------------------
       - name: Port-forward Selenium Hub to localhost:4444
         run: |
-          kubectl port-forward service/selenium-hub 4444:4444 &
+          kubectl port-forward service/grid-hub 4444:4444 -n selenium-grid &
           sleep 5
           echo "Hub status:"
           curl -s http://localhost:4444/wd/hub/status | python3 -m json.tool || true
@@ -200,9 +204,9 @@ jobs:
           echo "  Headless      : true (always in k8s pods)"
           echo "  Incognito     : ${{ inputs.incognito }}"
           echo "  Hub URL       : http://localhost:4444/wd/hub"
-          echo "  Chrome pods   : 2 replicas x 5 sessions = 10 slots"
-          echo "  Firefox pods  : 2 replicas x 5 sessions = 10 slots"
-          echo "  Edge pods     : 2 replicas x 5 sessions = 10 slots"
+          echo "  Chrome pods   : 1 pod x 1 session = 1 slot (HPA scales to 5)"
+          echo "  Firefox pods  : 1 pod x 1 session = 1 slot (HPA scales to 5)"
+          echo "  Edge pods     : 1 pod x 1 session = 1 slot (HPA scales to 5)"
           echo "=================================================="
 
       # --------------------------------------------------------
@@ -238,9 +242,11 @@ jobs:
         if: always()
         run: |
           echo "=== Selenium Hub Logs ==="
-          kubectl logs deployment/selenium-hub --tail=50 || true
+          kubectl logs deployment/grid-hub -n selenium-grid --tail=50 || true
           echo "=== Pod Status ==="
-          kubectl get pods -o wide || true
+          kubectl get pods -n selenium-grid -o wide || true
+          echo "=== HPA Status ==="
+          kubectl get hpa -n selenium-grid || true
 
       # --------------------------------------------------------
       # STEP 12 - GENERATE ALLURE REPORT
