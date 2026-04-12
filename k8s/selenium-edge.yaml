@@ -16,6 +16,7 @@ metadata:
     environment: ci
 spec:
   replicas: 1
+  revisionHistoryLimit: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: grid-node-edge
