@@ -251,9 +251,26 @@ spec:
       - CreateNamespace=true
 
   # ----------------------------------------------------------
-  # HEALTH CHECK BEHAVIOUR
-  # Argo CD has built-in health checks for Deployments.
-  # It will show "Healthy" only when all pods are Running
-  # and all replicas are Available — not just when the
-  # manifest is applied.
+  # IGNORE DIFFERENCES
+  # Tell Argo CD to ignore replica count on browser deployments.
+  # This is REQUIRED when HPA is managing replicas — otherwise
+  # Argo CD sees Git says replicas=X but HPA changed it to Y
+  # and keeps showing OutOfSync. By ignoring /spec/replicas,
+  # Argo CD lets HPA be the sole owner of replica count.
   # ----------------------------------------------------------
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      name: selenium-chrome
+      jsonPointers:
+        - /spec/replicas
+    - group: apps
+      kind: Deployment
+      name: selenium-firefox
+      jsonPointers:
+        - /spec/replicas
+    - group: apps
+      kind: Deployment
+      name: selenium-edge
+      jsonPointers:
+        - /spec/replicas

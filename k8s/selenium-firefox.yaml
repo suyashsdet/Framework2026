@@ -5,7 +5,6 @@ metadata:
   labels:
     app: selenium-firefox
 spec:
-  replicas: 1
   selector:
     matchLabels:
       app: selenium-firefox
