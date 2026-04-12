@@ -46,7 +46,7 @@ spec:
     - name: web
       port: 4444
       targetPort: 4444
-      nodePort: 30444
+      nodePort: 30445
     - name: publish
       port: 4442
       targetPort: 4442
