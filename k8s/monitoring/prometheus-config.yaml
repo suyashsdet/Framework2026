@@ -20,7 +20,13 @@ data:
         static_configs:
           - targets: ['localhost:9090']
 
-      # Scrape Kubernetes API for HPA and pod metrics
+      # Scrape kube-state-metrics for HPA, pod, deployment metrics
+      # THIS is what Grafana needs for kube_horizontalpodautoscaler_*
+      - job_name: 'kube-state-metrics'
+        static_configs:
+          - targets: ['kube-state-metrics.kube-system.svc.cluster.local:8080']
+
+      # Scrape Kubernetes API for cluster-level metrics
       - job_name: 'kubernetes-apiservers'
         scheme: https
         tls_config:
@@ -35,7 +41,7 @@ data:
             action: keep
             regex: kubernetes
 
-      # Scrape kubelet cadvisor for container memory metrics
+      # Scrape kubelet cadvisor for container CPU/memory metrics
       - job_name: 'kubernetes-cadvisor'
         scheme: https
         tls_config:
