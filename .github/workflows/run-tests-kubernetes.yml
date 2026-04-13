@@ -526,17 +526,17 @@ except:
                 <div class="card">
                   <div class="label">🟢 Chrome Replicas</div>
                   <div class="value">${PROM_HPA_CHROME}</div>
-                  <div class="sub">CPU: ${CHROME_HPA_CPU}% / 70% threshold</div>
+                  <div class="sub">CPU: ${CHROME_HPA_CPU}% / 80% threshold</div>
                 </div>
                 <div class="card">
                   <div class="label">🦊 Firefox Replicas</div>
                   <div class="value">${PROM_HPA_FIREFOX}</div>
-                  <div class="sub">CPU: ${FIREFOX_HPA_CPU}% / 70% threshold</div>
+                  <div class="sub">CPU: ${FIREFOX_HPA_CPU}% / 80% threshold</div>
                 </div>
                 <div class="card">
                   <div class="label">🔵 Edge Replicas</div>
                   <div class="value">${PROM_HPA_EDGE}</div>
-                  <div class="sub">CPU: ${EDGE_HPA_CPU}% / 70% threshold</div>
+                  <div class="sub">CPU: ${EDGE_HPA_CPU}% / 80% threshold</div>
                 </div>
               </div>
             </div>
@@ -576,7 +576,7 @@ except:
 
               <div style="background:#161b22; border:1px solid #30363d; border-radius:10px; padding:24px; margin-bottom:16px">
                 <h3 style="color:#f0f6fc; font-size:15px; margin-bottom:16px">🧠 CPU Utilization Timeline — What triggered HPA</h3>
-                <p style="color:#8b949e; font-size:12px; margin-bottom:12px">When CPU crossed 70% threshold, HPA fired and added pods. HPA threshold line shown in red.</p>
+                <p style="color:#8b949e; font-size:12px; margin-bottom:12px">When CPU crossed 80% threshold, HPA fired and added pods. HPA threshold line shown in red.</p>
                 <canvas id="cpuTimelineChart" height="120"></canvas>
               </div>
 
@@ -629,7 +629,7 @@ except:
                     { label: 'Chrome CPU %', data: [${CHROME_CPU_DATA}], borderColor: '#4285f4', backgroundColor: 'rgba(66,133,244,0.1)', tension: 0.3, fill: false, pointRadius: 3 },
                     { label: 'Firefox CPU %', data: [${FIREFOX_CPU_DATA}], borderColor: '#e6522c', backgroundColor: 'rgba(230,82,44,0.1)', tension: 0.3, fill: false, pointRadius: 3 },
                     { label: 'Edge CPU %', data: [${EDGE_CPU_DATA}], borderColor: '#3fb950', backgroundColor: 'rgba(63,185,80,0.1)', tension: 0.3, fill: false, pointRadius: 3 },
-                    { label: 'HPA threshold (70%)', data: Array(labels.length).fill(70), borderColor: '#f85149', borderDash: [5,5], pointRadius: 0, fill: false }
+                    { label: 'HPA threshold (80%)', data: Array(labels.length).fill(80), borderColor: '#f85149', borderDash: [5,5], pointRadius: 0, fill: false }
                   ]
                 },
                 options: {
@@ -742,7 +742,7 @@ except:
                 <div class="flow-box">
                   <div class="num" style="color:#d29922">5</div>
                   <div class="txt">Threads needed</div>
-                  <div class="txt">CPU spikes above 70%</div>
+                  <div class="txt">CPU spikes above 80%</div>
                 </div>
                 <div class="flow-arrow">→</div>
                 <div class="flow-box after">
@@ -760,19 +760,19 @@ except:
                   <div class="browser">🟢 Chrome</div>
                   <div class="value">${CHROME_REPLICAS}</div>
                   <div class="label">pods scaled to</div>
-                  <div class="label" style="margin-top:8px">CPU: ${CHROME_CPU}% / 70% threshold</div>
+                  <div class="label" style="margin-top:8px">CPU: ${CHROME_CPU}% / 80% threshold</div>
                 </div>
                 <div class="card green">
                   <div class="browser">🦊 Firefox</div>
                   <div class="value">${FIREFOX_REPLICAS}</div>
                   <div class="label">pods scaled to</div>
-                  <div class="label" style="margin-top:8px">CPU: ${FIREFOX_CPU}% / 70% threshold</div>
+                  <div class="label" style="margin-top:8px">CPU: ${FIREFOX_CPU}% / 80% threshold</div>
                 </div>
                 <div class="card green">
                   <div class="browser">🔵 Edge</div>
                   <div class="value">${EDGE_REPLICAS}</div>
                   <div class="label">pods scaled to</div>
-                  <div class="label" style="margin-top:8px">CPU: ${EDGE_CPU}% / 70% threshold</div>
+                  <div class="label" style="margin-top:8px">CPU: ${EDGE_CPU}% / 80% threshold</div>
                 </div>
               </div>
             </div>
