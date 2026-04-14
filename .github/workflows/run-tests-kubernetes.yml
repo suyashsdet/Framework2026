@@ -170,6 +170,23 @@ jobs:
           echo "Monitoring stack ready"
 
       # --------------------------------------------------------
+      # STEP 6c - INSTALL KUBE-STATE-METRICS
+      # --------------------------------------------------------
+      # Exposes kube_horizontalpodautoscaler_* and kube_pod_info
+      # metrics that Grafana dashboard panels need.
+      # Without this, Grafana shows "No data".
+      # --------------------------------------------------------
+      - name: Install kube-state-metrics
+        run: |
+          kubectl apply -f https://github.com/kubernetes/kube-state-metrics/raw/main/examples/standard/cluster-role-binding.yaml
+          kubectl apply -f https://github.com/kubernetes/kube-state-metrics/raw/main/examples/standard/cluster-role.yaml
+          kubectl apply -f https://github.com/kubernetes/kube-state-metrics/raw/main/examples/standard/service-account.yaml
+          kubectl apply -f https://github.com/kubernetes/kube-state-metrics/raw/main/examples/standard/deployment.yaml
+          kubectl apply -f https://github.com/kubernetes/kube-state-metrics/raw/main/examples/standard/service.yaml
+          kubectl rollout status deployment/kube-state-metrics -n kube-system --timeout=120s
+          echo "kube-state-metrics ready"
+
+      # --------------------------------------------------------
       # STEP 6b - INSTALL METRICS SERVER
       # --------------------------------------------------------
       # HPA needs metrics-server to read CPU usage per pod.
