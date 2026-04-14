@@ -242,6 +242,30 @@ jobs:
           curl -s http://localhost:3000/api/health || true
 
       # --------------------------------------------------------
+      # STEP 8b - WAIT FOR ALL BROWSER NODES TO REGISTER
+      # --------------------------------------------------------
+      - name: Wait for all browser nodes to register with Hub
+        run: |
+          echo "Waiting for Chrome, Firefox and Edge nodes to register with Hub..."
+          for i in $(seq 1 60); do
+            STATUS=$(curl -s http://localhost:4444/wd/hub/status 2>/dev/null || echo '{}')
+            CHROME=$(echo "$STATUS" | python3 -c "import sys,json;d=json.load(sys.stdin);print(sum(1 for n in d.get('value',{}).get('nodes',[]) if any(s.get('stereotype',{}).get('browserName','')=='chrome' for s in n.get('slots',[]))))" 2>/dev/null || echo 0)
+            FIREFOX=$(echo "$STATUS" | python3 -c "import sys,json;d=json.load(sys.stdin);print(sum(1 for n in d.get('value',{}).get('nodes',[]) if any(s.get('stereotype',{}).get('browserName','')=='firefox' for s in n.get('slots',[]))))" 2>/dev/null || echo 0)
+            EDGE=$(echo "$STATUS" | python3 -c "import sys,json;d=json.load(sys.stdin);print(sum(1 for n in d.get('value',{}).get('nodes',[]) if any(s.get('stereotype',{}).get('browserName','')=='MicrosoftEdge' for s in n.get('slots',[]))))" 2>/dev/null || echo 0)
+            echo "Attempt $i — Chrome: $CHROME | Firefox: $FIREFOX | Edge: $EDGE"
+            if [ "$CHROME" -ge 1 ] && [ "$FIREFOX" -ge 1 ] && [ "$EDGE" -ge 1 ]; then
+              echo "All 3 browser types registered. Grid is ready!"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "ERROR: Grid not ready after 5 minutes"
+              curl -s http://localhost:4444/wd/hub/status | python3 -m json.tool || true
+              exit 1
+            fi
+            sleep 5
+          done
+
+      # --------------------------------------------------------
       # STEP 9 - PRINT RUN CONFIGURATION
       # --------------------------------------------------------
       - name: Print run configuration
