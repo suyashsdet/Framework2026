@@ -402,19 +402,17 @@ jobs:
 
           RUN_TIME=$(date '+%Y-%m-%d %H:%M:%S UTC')
 
-          # Wait for Prometheus to scrape metrics
-          echo "Waiting 30s for Prometheus to scrape metrics..."
-          sleep 30
-
-          # Get HPA data directly from kubectl (reliable)
-          PROM_HPA_CHROME=$(kubectl get hpa selenium-hpa-chrome -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
-          PROM_HPA_FIREFOX=$(kubectl get hpa selenium-hpa-firefox -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
-          PROM_HPA_EDGE=$(kubectl get hpa selenium-hpa-edge -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
-
-          # Get CPU utilization from HPA status
-          CHROME_HPA_CPU=$(kubectl get hpa selenium-hpa-chrome -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
-          FIREFOX_HPA_CPU=$(kubectl get hpa selenium-hpa-firefox -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
-          EDGE_HPA_CPU=$(kubectl get hpa selenium-hpa-edge -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
+          # --------------------------------------------------------
+          # SINGLE DATA CAPTURE — used by BOTH kubernetes.html and
+          # prometheus.html to ensure consistent numbers across reports.
+          # No sleep/delay between captures.
+          # --------------------------------------------------------
+          PROM_HPA_CHROME=${CHROME_REPLICAS}
+          PROM_HPA_FIREFOX=${FIREFOX_REPLICAS}
+          PROM_HPA_EDGE=${EDGE_REPLICAS}
+          CHROME_HPA_CPU=${CHROME_CPU}
+          FIREFOX_HPA_CPU=${FIREFOX_CPU}
+          EDGE_HPA_CPU=${EDGE_CPU}
 
           # Get Prometheus targets status
           PROM_TARGETS=$(curl -s http://localhost:9090/api/v1/targets 2>/dev/null || echo '{}')
