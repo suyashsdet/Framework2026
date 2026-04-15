@@ -16,8 +16,7 @@
 # SCALING BEHAVIOR:
 #   minReplicas: 1  → always 1 pod ready (warm start)
 #   maxReplicas: 5  → can handle 5 parallel Chrome tests
-#   target CPU: 70% → when avg CPU > 70%, add pods
-#   (70% chosen because idle Chromium sits at ~40-60%)
+#   target CPU: 80% → when avg CPU > 80%, add pods
 #
 #   scaleUp:   0s stabilization, up to 4 pods in 15s
 #              (instant reaction when tests start)
@@ -27,10 +26,10 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: hpa-grid-node-chrome
+  name: selenium-hpa-chrome
   namespace: selenium-grid
   labels:
-    app.kubernetes.io/name: hpa-grid-node-chrome
+    app.kubernetes.io/name: selenium-hpa-chrome
     app.kubernetes.io/component: autoscaler
     app.kubernetes.io/part-of: selenium-grid
     app.kubernetes.io/managed-by: argocd
@@ -41,7 +40,7 @@ spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: grid-node-chrome
+    name: selenium-node-chrome
   minReplicas: 1
   maxReplicas: 5
   metrics:

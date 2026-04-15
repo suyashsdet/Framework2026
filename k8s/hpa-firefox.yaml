@@ -7,10 +7,10 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: hpa-grid-node-firefox
+  name: selenium-hpa-firefox
   namespace: selenium-grid
   labels:
-    app.kubernetes.io/name: hpa-grid-node-firefox
+    app.kubernetes.io/name: selenium-hpa-firefox
     app.kubernetes.io/component: autoscaler
     app.kubernetes.io/part-of: selenium-grid
     app.kubernetes.io/managed-by: argocd
@@ -21,7 +21,7 @@ spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: grid-node-firefox
+    name: selenium-node-firefox
   minReplicas: 1
   maxReplicas: 5
   metrics:

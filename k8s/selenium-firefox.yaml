@@ -4,10 +4,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: grid-node-firefox
+  name: selenium-node-firefox
   namespace: selenium-grid
   labels:
-    app.kubernetes.io/name: grid-node-firefox
+    app.kubernetes.io/name: selenium-node-firefox
     app.kubernetes.io/component: browser-node
     app.kubernetes.io/part-of: selenium-grid
     app.kubernetes.io/managed-by: argocd
@@ -19,11 +19,11 @@ spec:
   revisionHistoryLimit: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: grid-node-firefox
+      app.kubernetes.io/name: selenium-node-firefox
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: grid-node-firefox
+        app.kubernetes.io/name: selenium-node-firefox
         app.kubernetes.io/component: browser-node
         app.kubernetes.io/part-of: selenium-grid
         browser: firefox
@@ -31,11 +31,11 @@ spec:
         environment: ci
     spec:
       containers:
-        - name: grid-node-firefox
+        - name: selenium-node-firefox
           image: selenium/node-firefox:4.27.0
           env:
             - name: SE_EVENT_BUS_HOST
-              value: "grid-hub"
+              value: "selenium-hub"
             - name: SE_EVENT_BUS_PUBLISH_PORT
               value: "4442"
             - name: SE_EVENT_BUS_SUBSCRIBE_PORT

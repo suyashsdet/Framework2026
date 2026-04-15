@@ -10,10 +10,10 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: grid-node-chrome
+  name: selenium-node-chrome
   namespace: selenium-grid
   labels:
-    app.kubernetes.io/name: grid-node-chrome
+    app.kubernetes.io/name: selenium-node-chrome
     app.kubernetes.io/component: browser-node
     app.kubernetes.io/part-of: selenium-grid
     app.kubernetes.io/managed-by: argocd
@@ -25,11 +25,11 @@ spec:
   revisionHistoryLimit: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: grid-node-chrome
+      app.kubernetes.io/name: selenium-node-chrome
   template:
     metadata:
       labels:
-        app.kubernetes.io/name: grid-node-chrome
+        app.kubernetes.io/name: selenium-node-chrome
         app.kubernetes.io/component: browser-node
         app.kubernetes.io/part-of: selenium-grid
         browser: chrome
@@ -37,11 +37,11 @@ spec:
         environment: ci
     spec:
       containers:
-        - name: grid-node-chrome
+        - name: selenium-node-chrome
           image: selenium/node-chrome:4.18.1
           env:
             - name: SE_EVENT_BUS_HOST
-              value: "grid-hub"
+              value: "selenium-hub"
             - name: SE_EVENT_BUS_PUBLISH_PORT
               value: "4442"
             - name: SE_EVENT_BUS_SUBSCRIBE_PORT
