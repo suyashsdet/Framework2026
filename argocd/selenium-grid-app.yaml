@@ -50,8 +50,6 @@
 #   KUBERNETES CLUSTER
 #   └── namespace: selenium-grid
 #       ├── Deployment: selenium-hub      (1 replica)
-#       ├── Deployment: selenium-chrome   (2 replicas)
-#       ├── Deployment: selenium-firefox  (2 replicas)
 #       ├── Deployment: selenium-chrome   (1 replica, HPA scales to 5)
 #       ├── Deployment: selenium-firefox  (1 replica, HPA scales to 5)
 #       ├── Deployment: selenium-edge     (1 replica, HPA scales to 5)
