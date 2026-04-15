@@ -1,3 +1,15 @@
+# ============================================================
+# Prometheus Scrape Configuration
+# ============================================================
+# Defines WHAT Prometheus collects and FROM WHERE.
+# Mounted as /etc/prometheus/prometheus.yml inside the pod.
+#
+# Scrape targets:
+#   1. prometheus    — self-monitoring
+#   2. kube-state-metrics — HPA replicas, pod state, deployments
+#   3. kubernetes-apiservers — API server request metrics
+#   4. kubernetes-cadvisor — container CPU/memory from kubelets
+# ============================================================
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -5,8 +17,10 @@ metadata:
   namespace: monitoring
   labels:
     app.kubernetes.io/name: prometheus
+    app.kubernetes.io/component: monitoring
     app.kubernetes.io/part-of: selenium-grid-monitoring
     project: framework2026
+    environment: ci
 data:
   prometheus.yml: |
     global:

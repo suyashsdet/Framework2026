@@ -200,7 +200,7 @@ KIND CLUSTER: selenium-grid
                                     └──────────────────┘
 
 SELF-HEALING EXAMPLE:
-  Someone runs: kubectl delete pod grid-hub-xxx
+  Someone runs: kubectl delete pod selenium-hub-xxx
   ┌─────────┐        ┌──────────┐        ┌───────────┐
   │ Git says │        │ Cluster  │        │ ArgoCD    │
   │ 1 hub pod│  ≠     │ 0 hub pod│  ──▶   │ Restores  │
@@ -308,7 +308,7 @@ SELF-HEALING EXAMPLE:
 **Kube-State-Metrics**
 - Converts Kubernetes object state into Prometheus metrics
 - Doesn't measure resource usage — measures object STATE
-- Example: "HPA hpa-grid-node-chrome has desired replicas = 3"
+- Example: "HPA selenium-hpa-chrome has desired replicas = 3"
 - This is what powers the Grafana HPA dashboard panels
 
 ---
@@ -338,7 +338,7 @@ SELF-HEALING EXAMPLE:
 │  │ Runs loops:  │  │ DNS for the  │  │ so pods can    │ │
 │  │ • Deployment │  │ cluster      │  │ talk to        │ │
 │  │   controller │  │              │  │ Services       │ │
-│  │ • ReplicaSet │  │ "grid-hub" → │  │                │ │
+│  │ • ReplicaSet │  │ "selenium-hub"│  │                │ │
 │  │   controller │  │ 10.96.20.7   │  │ Manages        │ │
 │  │ • HPA        │  │              │  │ iptables/ipvs  │ │
 │  │   controller │  │              │  │ rules          │ │
@@ -383,8 +383,8 @@ SELF-HEALING EXAMPLE:
 
 **CoreDNS**
 - Cluster DNS server — resolves service names to IPs
-- When Chrome node connects to "grid-hub", CoreDNS resolves it
-  to the grid-hub Service ClusterIP (10.96.x.x)
+- When Chrome node connects to "selenium-hub", CoreDNS resolves it
+  to the selenium-hub Service ClusterIP (10.96.x.x)
 - 2 replicas for high availability
 
 **Kube-Proxy**

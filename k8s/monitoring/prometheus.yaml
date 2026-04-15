@@ -1,3 +1,19 @@
+# ============================================================
+# Prometheus — Metrics Collection for Selenium Grid
+# ============================================================
+# Scrapes metrics every 15 seconds from:
+#   - Itself (self-monitoring)
+#   - kube-state-metrics (HPA, pod, deployment state)
+#   - Kubernetes API server (cluster-level metrics)
+#   - kubelet/cadvisor (container CPU/memory usage)
+#
+# Retention: 1 hour (short — this is for CI, not long-term)
+# Storage: emptyDir (non-persistent, lost on pod restart)
+# Access: NodePort 30090 or port-forward to localhost:9090
+#
+# Includes: Namespace, ServiceAccount, ClusterRole,
+#           ClusterRoleBinding, Deployment, Service
+# ============================================================
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -48,8 +64,10 @@ metadata:
   namespace: monitoring
   labels:
     app.kubernetes.io/name: prometheus
+    app.kubernetes.io/component: monitoring
     app.kubernetes.io/part-of: selenium-grid-monitoring
     project: framework2026
+    environment: ci
 spec:
   replicas: 1
   selector:
@@ -59,8 +77,10 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: prometheus
+        app.kubernetes.io/component: monitoring
         app.kubernetes.io/part-of: selenium-grid-monitoring
         project: framework2026
+        environment: ci
     spec:
       serviceAccountName: prometheus
       containers:
@@ -99,7 +119,9 @@ metadata:
   namespace: monitoring
   labels:
     app.kubernetes.io/name: prometheus
+    app.kubernetes.io/part-of: selenium-grid-monitoring
     project: framework2026
+    environment: ci
 spec:
   type: NodePort
   selector:

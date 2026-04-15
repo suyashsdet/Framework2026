@@ -58,7 +58,7 @@ The smallest thing Kubernetes manages. A wrapper around one or more containers.
 - You NEVER run a container directly in Kubernetes
 - You always run a Pod, which has a container inside
 - 95% of the time: 1 pod = 1 container
-- Your grid-hub pod = 1 container running selenium/hub image
+- Your selenium-hub pod = 1 container running selenium/hub image
 
 ### Namespace
 A folder inside Kubernetes to organize resources.
@@ -74,7 +74,7 @@ A YAML file that tells Kubernetes: "Run X copies of this container and keep them
 ```yaml
 kind: Deployment
 metadata:
-  name: grid-hub          ← name of the deployment
+  name: selenium-hub          ← name of the deployment
 spec:
   replicas: 1             ← run 1 copy
   template:
@@ -97,14 +97,14 @@ Without Service:
   Chrome pod IP = 10.244.0.16 (changes on restart!)
 
 With Service:
-  Service "grid-hub" = 10.96.20.7 (never changes)
-  Chrome connects to "grid-hub" → Service routes to the hub pod
+  Service "selenium-hub" = 10.96.x.x (never changes)
+  Chrome connects to "selenium-hub" → Service routes to the hub pod
 ```
 
 ### NodePort
 A type of Service that exposes a port on the node so you can access it from outside.
 ```
-grid-hub Service:
+selenium-hub Service:
   ClusterIP: 10.96.20.7:4444    ← accessible inside cluster only
   NodePort:  30444               ← accessible from your Mac via localhost:30444
 ```
@@ -117,7 +117,7 @@ ArgoCD services use ClusterIP — you access them via port-forward, not NodePort
 ### Port-Forward
 A kubectl command that tunnels traffic from your Mac to a pod inside the cluster.
 ```
-kubectl port-forward svc/grid-hub 4444:4444 -n selenium-grid
+kubectl port-forward svc/selenium-hub 4444:4444 -n selenium-grid
                      ↑              ↑    ↑
                      service name   local cluster
                                     port  port
@@ -178,8 +178,8 @@ CPU measurement in Kubernetes.
 
 ### DNS (Domain Name System)
 Converts names to IP addresses.
-When Chrome node connects to "grid-hub", CoreDNS resolves it:
-  "grid-hub" → "grid-hub.selenium-grid.svc.cluster.local" → 10.96.20.7
+When Chrome node connects to "selenium-hub", CoreDNS resolves it:
+  "selenium-hub" → "selenium-hub.selenium-grid.svc.cluster.local" → 10.96.x.x
 
 ### CoreDNS
 The DNS server running inside your Kubernetes cluster (2 pods).
@@ -197,7 +197,7 @@ calls a Service IP (10.96.x.x), traffic gets routed to the actual pod.
 ### Ingress
 A way to expose HTTP services to the outside world with URL routing.
 You're NOT using Ingress — you use port-forward instead.
-In production: `selenium.mycompany.com` → Ingress → grid-hub Service → pod.
+In production: `selenium.mycompany.com` → Ingress → selenium-hub Service → pod.
 
 ---
 
@@ -265,7 +265,7 @@ When ArgoCD applies changes from Git to the cluster.
 
 ### Self-Healing
 ArgoCD's ability to fix manual changes.
-Someone runs `kubectl delete pod grid-hub-xxx` → ArgoCD detects the drift →
+Someone runs `kubectl delete pod selenium-hub-xxx` → ArgoCD detects the drift →
 ArgoCD recreates the pod to match Git. The cluster always matches Git.
 
 ### Prune
@@ -290,15 +290,15 @@ ArgoCD creates a CRD called "Application" — this is NOT a built-in Kubernetes 
 Open-source monitoring system. Collects metrics by PULLING (scraping) from targets.
 Every 15 seconds it asks each target: "Give me your numbers."
 Stores everything as time-series: (metric_name, value, timestamp).
-Example: `container_cpu_usage{pod="grid-node-chrome"} = 0.65 @ 10:05:00`
+Example: `container_cpu_usage{pod="selenium-node-chrome"} = 0.65 @ 10:05:00`
 
 ### Scraping
 Prometheus's way of collecting metrics. It makes HTTP requests to targets.
 ```
 Prometheus → GET http://kube-state-metrics:8080/metrics
           ← Returns thousands of lines like:
-            kube_pod_info{pod="grid-hub", namespace="selenium-grid"} 1
-            kube_hpa_status_desired_replicas{hpa="hpa-grid-node-chrome"} 3
+            kube_pod_info{pod="selenium-hub", namespace="selenium-grid"} 1
+            kube_hpa_status_desired_replicas{hpa="selenium-hpa-chrome"} 3
 ```
 
 ### Grafana
@@ -354,18 +354,18 @@ ArgoCD stores its admin password in a Secret.
 Key-value tags attached to Kubernetes objects. Used for selection/filtering.
 ```yaml
 labels:
-  app.kubernetes.io/name: grid-node-chrome
+  app.kubernetes.io/name: selenium-node-chrome
   browser: chrome
   project: framework2026
 ```
-Services use labels to find pods: "Route traffic to all pods with label app=grid-hub"
+Services use labels to find pods: "Route traffic to all pods with label app=selenium-hub"
 
 ### Selector
 A filter that matches labels.
 ```yaml
 selector:
   matchLabels:
-    app.kubernetes.io/name: grid-hub    ← "find pods with this label"
+    app.kubernetes.io/name: selenium-hub    ← "find pods with this label"
 ```
 
 ### Annotations
@@ -427,16 +427,16 @@ So pod = container for practical purposes.
 ### Your Project — Every Pod Has 1 Container
 
 ```
-Pod: grid-hub
+Pod: selenium-hub
  └── 1 Container: selenium/hub:4.18.1 (Selenium Hub process)
 
-Pod: grid-node-chrome
+Pod: selenium-node-chrome
  └── 1 Container: selenium/node-chrome:4.18.1 (Chrome browser)
 
-Pod: grid-node-firefox
+Pod: selenium-node-firefox
  └── 1 Container: selenium/node-firefox:4.27.0 (Firefox browser)
 
-Pod: grid-node-edge
+Pod: selenium-node-edge
  └── 1 Container: selenium/node-edge:4.18.1 (Edge browser)
 
 Pod: prometheus

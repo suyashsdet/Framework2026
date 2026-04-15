@@ -1,6 +1,10 @@
 # ============================================================
 # Selenium Grid — Firefox Node Deployment
 # ============================================================
+# Runs a real Firefox browser inside a container.
+# Same architecture as Chrome — 1 session per pod for clean
+# HPA scaling. See selenium-chrome.yaml for detailed comments.
+# ============================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:

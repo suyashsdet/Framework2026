@@ -1,3 +1,18 @@
+# ============================================================
+# Selenium Grid — Hub (Router) Deployment + Service
+# ============================================================
+# The Hub is the central entry point for all test requests.
+# It receives WebDriver commands on port 4444 and routes them
+# to an available browser node (Chrome/Firefox/Edge).
+#
+# Ports:
+#   4444 — WebDriver (tests connect here)
+#   4442 — Event Bus publish (hub → nodes)
+#   4443 — Event Bus subscribe (nodes → hub)
+#
+# Service type: NodePort (30444) so it's accessible from
+# outside the cluster via port-forward or node IP.
+# ============================================================
 apiVersion: apps/v1
 kind: Deployment
 metadata:
