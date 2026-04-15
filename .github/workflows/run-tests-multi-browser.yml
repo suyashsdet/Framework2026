@@ -348,15 +348,15 @@ jobs:
           <body>
             <h1>Framework2026 — Test Reports</h1>
             <div class="card">
-              <a href="allure/index.html">📊 Allure Report</a>
+              <a href="allure/index.html">Allure Report</a>
               <p>Rich dashboard with charts, timeline, and per-test details</p>
             </div>
             <div class="card">
-              <a href="chaintest/Index.html">🔗 ChainTest Report</a>
+              <a href="chaintest/Index.html"> ChainTest Report</a>
               <p>Interactive dark theme report with screenshots</p>
             </div>
             <div class="card">
-              <a href="testng/index.html">✅ TestNG Report</a>
+              <a href="testng/index.html">TestNG Report</a>
               <p>Pass/fail per test method with stack traces</p>
             </div>
           </body>
@@ -398,10 +398,10 @@ jobs:
   #   Step 8 above and publishes it to GitHub Pages.
   #   After this job completes, your reports are live at:
   #
-  #   🌐 https://suyashsdet.github.io/Framework2026/
-  #   📊 https://suyashsdet.github.io/Framework2026/allure/
-  #   🔗 https://suyashsdet.github.io/Framework2026/chaintest/
-  #   ✅ https://suyashsdet.github.io/Framework2026/testng/
+  #    https://suyashsdet.github.io/Framework2026/
+  #   https://suyashsdet.github.io/Framework2026/allure/
+  #    https://suyashsdet.github.io/Framework2026/chaintest/
+  #   https://suyashsdet.github.io/Framework2026/testng/
   #
   # if: always() → deploys even if the test job had failures
   #   so reports are always published.

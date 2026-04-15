@@ -26,14 +26,14 @@
 #     many characters to reduce
 #   - A GitHub inline annotation appears directly on the
 #     offending line in the PR diff view (red marker)
-#   - The job exits with code 1 → PR is blocked (red ✗)
+#   - The job exits with code 1 → PR is blocked (red X)
 #   - ALL violations are reported at once, not just the first
 #     one, so you can fix everything in a single pass
 #
 # WHAT HAPPENS WHEN IT PASSES:
 #   - A success summary is printed listing how many files
 #     were scanned and confirming zero violations
-#   - The job exits with code 0 → PR check goes green (✓)
+#   - The job exits with code 0 → PR check goes green (PASS)
 #
 # WHEN DOES IT RUN?
 #   - On every git push to any branch
@@ -136,8 +136,8 @@ jobs:
       #
       # 6. PRINT a summary:
       #    After scanning, prints either:
-      #      ❌ with the total violation count → job fails
-      #      ✅ with the total files scanned  → job passes
+      #      with the total violation count → job fails
+      #      with the total files scanned  → job passes
       # -----------------------------------------------------------
       - name: Check line length (max 120 characters)
         run: |
@@ -157,7 +157,7 @@ jobs:
               if [ ${#line} -gt 120 ]; then
                 VIOLATION_COUNT=$((VIOLATION_COUNT + 1))
                 echo "::error file=$file,line=$LINE_NUM::Line exceeds 120 characters (${#line} chars)"
-                echo "  ❌ FILE : $file"
+                echo "  FILE : $file"
                 echo "     LINE : $LINE_NUM"
                 echo "     CHARS: ${#line} (exceeds limit by $((${#line} - 120)) characters)"
                 echo ""
@@ -169,7 +169,7 @@ jobs:
 
           echo "----------------------------------------------------"
           if [ $FAILED -ne 0 ] || [ $VIOLATION_COUNT -gt 0 ]; then
-            echo "  ❌ LINT FAILED"
+            echo "  LINT FAILED"
             echo "  Total files scanned : $FILE_COUNT"
             echo "  Total violations    : $VIOLATION_COUNT"
             echo ""
@@ -182,7 +182,7 @@ jobs:
             exit 1
           fi
 
-          echo "  ✅ LINT PASSED"
+          echo "  LINT PASSED"
           echo "  Total files scanned : $FILE_COUNT"
           echo "  Total violations    : 0"
           echo "  All lines are within the 120 character limit."

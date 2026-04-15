@@ -280,15 +280,15 @@ jobs:
           <body>
             <h1>Framework2026 — Test Reports (Docker)</h1>
             <div class="card">
-              <a href="allure/index.html">📊 Allure Report</a>
+              <a href="allure/index.html">Allure Report</a>
               <p>Rich dashboard with charts, timeline, and per-test details</p>
             </div>
             <div class="card">
-              <a href="chaintest/Index.html">🔗 ChainTest Report</a>
+              <a href="chaintest/Index.html"> ChainTest Report</a>
               <p>Interactive dark theme report with screenshots</p>
             </div>
             <div class="card">
-              <a href="testng/index.html">✅ TestNG Report</a>
+              <a href="testng/index.html">TestNG Report</a>
               <p>Pass/fail per test method with stack traces</p>
             </div>
           </body>

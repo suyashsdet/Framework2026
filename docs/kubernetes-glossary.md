@@ -259,8 +259,8 @@ A tool that implements GitOps. Runs inside your cluster.
 
 ### Sync
 When ArgoCD applies changes from Git to the cluster.
-- "Synced" (green) = cluster matches Git ✅
-- "OutOfSync" (yellow) = cluster differs from Git ⚠️
+- "Synced" (green) = cluster matches Git 
+- "OutOfSync" (yellow) = cluster differs from Git 
 - "Syncing" = ArgoCD is applying changes right now
 
 ### Self-Healing
@@ -545,8 +545,8 @@ YES → Put them in the same pod (sidecar pattern)
 NO  → Put them in separate pods (your project's approach)
 
 Your project:
-  Does Chrome need to share files with Firefox?     NO → separate pods ✅
-  Does the hub need to share localhost with Chrome?  NO → separate pods ✅
+  Does Chrome need to share files with Firefox?     NO → separate pods 
+  Does the hub need to share localhost with Chrome?  NO → separate pods 
   Does log-collector need nginx's log files?         YES → same pod (sidecar)
 ```
 

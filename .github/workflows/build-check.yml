@@ -37,13 +37,13 @@
 # WHAT HAPPENS WHEN IT FAILS:
 #   - Maven prints the exact FILE and LINE where the
 #     compilation error occurred
-#   - The job exits with code 1 → PR is blocked (red ✗)
+#   - The job exits with code 1 → PR is blocked (red X)
 #   - You fix the error locally, push again, and the
 #     workflow re-runs automatically
 #
 # WHAT HAPPENS WHEN IT PASSES:
 #   - Maven prints "BUILD SUCCESS" in the log
-#   - The job exits with code 0 → PR check goes green (✓)
+#   - The job exits with code 0 → PR check goes green (PASS)
 #   - Safe to proceed to the next step (e.g. running tests)
 #
 # WHEN DOES IT RUN?
@@ -161,8 +161,8 @@ jobs:
       #     Prints the Maven and Java version at the start of the
       #     log. Useful for debugging version mismatch issues.
       #
-      # If compilation succeeds → "BUILD SUCCESS" in log → green ✓
-      # If compilation fails    → "BUILD FAILURE" in log → red ✗
+      # If compilation succeeds → "BUILD SUCCESS" in log → green PASS
+      # If compilation fails    → "BUILD FAILURE" in log → red X
       #   Maven will also print the exact file and line number
       #   of every compilation error so you know exactly what
       #   to fix.

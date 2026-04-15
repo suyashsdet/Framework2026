@@ -478,12 +478,12 @@ jobs:
           </head>
           <body>
             <a href="index.html" class="back">← Back to Reports</a>
-            <h1>🔥 Prometheus Metrics</h1>
+            <h1>Prometheus Metrics</h1>
             <p class="subtitle">Framework2026 · Selenium Grid on Kubernetes · $RUN_TIME</p>
 
             <div class="section">
               <div class="grafana-note">
-                <h3>📊 About This Page</h3>
+                <h3>About This Page</h3>
                 <p>Prometheus was deployed inside the Kubernetes cluster during this test run.
                 It scraped HPA and pod metrics every 15 seconds.
                 The values below were captured via Prometheus API after tests completed.
@@ -496,17 +496,17 @@ jobs:
               <h2>HPA Current Replicas (from Prometheus)</h2>
               <div class="grid3">
                 <div class="card">
-                  <div class="label">🟢 Chrome Replicas</div>
+                  <div class="label">[Chrome] Chrome Replicas</div>
                   <div class="value">${PROM_HPA_CHROME}</div>
                   <div class="sub">CPU: ${CHROME_HPA_CPU}% / 80% threshold</div>
                 </div>
                 <div class="card">
-                  <div class="label">🦊 Firefox Replicas</div>
+                  <div class="label">[Firefox] Firefox Replicas</div>
                   <div class="value">${PROM_HPA_FIREFOX}</div>
                   <div class="sub">CPU: ${FIREFOX_HPA_CPU}% / 80% threshold</div>
                 </div>
                 <div class="card">
-                  <div class="label">🔵 Edge Replicas</div>
+                  <div class="label">[Edge] Edge Replicas</div>
                   <div class="value">${PROM_HPA_EDGE}</div>
                   <div class="sub">CPU: ${EDGE_HPA_CPU}% / 80% threshold</div>
                 </div>
@@ -534,32 +534,32 @@ jobs:
             </div>
 
             <div class="section">
-              <h2>📈 Scaling Charts (Chart.js)</h2>
+              <h2>Scaling Charts (Chart.js)</h2>
               <div class="grafana-note">
                 <h3>Real Data from kubectl + Prometheus</h3>
                 <p>These charts are generated from live kubectl HPA data captured during and after the test run. They show exactly what happened to pod counts and CPU during scaling.</p>
               </div>
 
               <div style="background:#161b22; border:1px solid #30363d; border-radius:10px; padding:24px; margin-bottom:16px">
-                <h3 style="color:#f0f6fc; font-size:15px; margin-bottom:16px">📈 Pod Replicas Timeline — Live scaling during test run</h3>
+                <h3 style="color:#f0f6fc; font-size:15px; margin-bottom:16px">Pod Replicas Timeline — Live scaling during test run</h3>
                 <p style="color:#8b949e; font-size:12px; margin-bottom:12px">Sampled every 15 seconds. Shows exactly when HPA scaled up pods as CPU spiked.</p>
                 <canvas id="timelineChart" height="120"></canvas>
               </div>
 
               <div style="background:#161b22; border:1px solid #30363d; border-radius:10px; padding:24px; margin-bottom:16px">
-                <h3 style="color:#f0f6fc; font-size:15px; margin-bottom:16px">🧠 CPU Utilization Timeline — What triggered HPA</h3>
+                <h3 style="color:#f0f6fc; font-size:15px; margin-bottom:16px">CPU Utilization Timeline — What triggered HPA</h3>
                 <p style="color:#8b949e; font-size:12px; margin-bottom:12px">When CPU crossed 80% threshold, HPA fired and added pods. HPA threshold line shown in red.</p>
                 <canvas id="memoryTimelineChart" height="120"></canvas>
               </div>
 
               <div style="background:#161b22; border:1px solid #30363d; border-radius:10px; padding:24px; margin-bottom:16px">
-                <h3 style="color:#f0f6fc; font-size:15px; margin-bottom:16px">📊 Peak Replicas — Before vs Peak during tests</h3>
+                <h3 style="color:#f0f6fc; font-size:15px; margin-bottom:16px">Peak Replicas — Before vs Peak during tests</h3>
                 <p style="color:#8b949e; font-size:12px; margin-bottom:12px">Maximum pods reached during the entire test run per browser.</p>
                 <canvas id="peakChart" height="100"></canvas>
               </div>
 
               <div style="background:#161b22; border:1px solid #30363d; border-radius:10px; padding:24px; margin-bottom:16px">
-                <h3 style="color:#f0f6fc; font-size:15px; margin-bottom:16px">⚡ Threads vs Slots — Did we have enough capacity?</h3>
+                <h3 style="color:#f0f6fc; font-size:15px; margin-bottom:16px">Threads vs Slots — Did we have enough capacity?</h3>
                 <p style="color:#8b949e; font-size:12px; margin-bottom:12px">5 threads per browser needed. HPA scaled pods to provide enough slots.</p>
                 <canvas id="slotsChart" height="100"></canvas>
               </div>
@@ -699,7 +699,7 @@ jobs:
           </head>
           <body>
             <a href="index.html" class="back">← Back to Reports</a>
-            <h1>⚡ Kubernetes Scaling Summary</h1>
+            <h1>Kubernetes Scaling Summary</h1>
             <p class="subtitle">Framework2026 · Selenium Grid on Kubernetes · $RUN_TIME</p>
 
             <div class="section">
@@ -729,19 +729,19 @@ jobs:
               <h2>HPA Final State (After Tests)</h2>
               <div class="grid">
                 <div class="card green">
-                  <div class="browser">🟢 Chrome</div>
+                  <div class="browser">[Chrome] Chrome</div>
                   <div class="value">${CHROME_REPLICAS}</div>
                   <div class="label">pods scaled to</div>
                   <div class="label" style="margin-top:8px">CPU: ${CHROME_CPU}% / 80% threshold</div>
                 </div>
                 <div class="card green">
-                  <div class="browser">🦊 Firefox</div>
+                  <div class="browser">[Firefox] Firefox</div>
                   <div class="value">${FIREFOX_REPLICAS}</div>
                   <div class="label">pods scaled to</div>
                   <div class="label" style="margin-top:8px">CPU: ${FIREFOX_CPU}% / 80% threshold</div>
                 </div>
                 <div class="card green">
-                  <div class="browser">🔵 Edge</div>
+                  <div class="browser">[Edge] Edge</div>
                   <div class="value">${EDGE_REPLICAS}</div>
                   <div class="label">pods scaled to</div>
                   <div class="label" style="margin-top:8px">CPU: ${EDGE_CPU}% / 80% threshold</div>
@@ -765,31 +765,31 @@ jobs:
                 </thead>
                 <tbody>
                   <tr>
-                    <td>🟢 Chrome</td>
+                    <td>[Chrome] Chrome</td>
                     <td><span class="badge badge-blue">2</span></td>
                     <td><span class="badge badge-blue">2</span></td>
                     <td>5</td>
                     <td><span class="badge badge-green">${CHROME_REPLICAS}</span></td>
                     <td><span class="badge badge-green">${CHROME_REPLICAS}</span></td>
-                    <td>✅ All threads served</td>
+                    <td>All threads served</td>
                   </tr>
                   <tr>
-                    <td>🦊 Firefox</td>
+                    <td>[Firefox] Firefox</td>
                     <td><span class="badge badge-blue">2</span></td>
                     <td><span class="badge badge-blue">2</span></td>
                     <td>5</td>
                     <td><span class="badge badge-green">${FIREFOX_REPLICAS}</span></td>
                     <td><span class="badge badge-green">${FIREFOX_REPLICAS}</span></td>
-                    <td>✅ All threads served</td>
+                    <td>All threads served</td>
                   </tr>
                   <tr>
-                    <td>🔵 Edge</td>
+                    <td>[Edge] Edge</td>
                     <td><span class="badge badge-blue">2</span></td>
                     <td><span class="badge badge-blue">2</span></td>
                     <td>5</td>
                     <td><span class="badge badge-green">${EDGE_REPLICAS}</span></td>
                     <td><span class="badge badge-green">${EDGE_REPLICAS}</span></td>
-                    <td>✅ All threads served</td>
+                    <td>All threads served</td>
                   </tr>
                 </tbody>
               </table>
@@ -871,27 +871,27 @@ jobs:
             <p class="subtitle">Kubernetes · Selenium Grid · GitOps with Argo CD</p>
             <div class="grid">
               <a href="kubernetes.html" class="card highlight">
-                <div class="icon">⚡</div>
+                <div class="icon">K8S</div>
                 <div class="title">Kubernetes Scaling Summary</div>
                 <div class="desc">HPA scaling stats, pod counts before/after, parallel execution math</div>
               </a>
               <a href="allure/index.html" class="card">
-                <div class="icon">📊</div>
+                <div class="icon">PROM</div>
                 <div class="title">Allure Report</div>
                 <div class="desc">Rich dashboard with charts, timeline, and per-test details</div>
               </a>
               <a href="chaintest/Index.html" class="card">
-                <div class="icon">🔗</div>
+                <div class="icon"></div>
                 <div class="title">ChainTest Report</div>
                 <div class="desc">Interactive dark theme report with screenshots</div>
               </a>
               <a href="testng/index.html" class="card">
-                <div class="icon">✅</div>
+                <div class="icon"></div>
                 <div class="title">TestNG Report</div>
                 <div class="desc">Pass/fail per test method with stack traces</div>
               </a>
               <a href="prometheus.html" class="card">
-                <div class="icon">🔥</div>
+                <div class="icon">FIRE</div>
                 <div class="title">Prometheus Metrics</div>
                 <div class="desc">Raw HPA and pod metrics captured during test run</div>
               </a>
