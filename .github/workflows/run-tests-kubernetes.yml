@@ -205,16 +205,16 @@ jobs:
       - name: Wait for all Selenium pods to be ready
         run: |
           echo "Waiting for Hub..."
-          kubectl rollout status deployment/grid-hub -n selenium-grid --timeout=120s
+          kubectl rollout status deployment/selenium-hub -n selenium-grid --timeout=120s
 
           echo "Waiting for Chrome nodes..."
-          kubectl rollout status deployment/grid-node-chrome -n selenium-grid --timeout=120s
+          kubectl rollout status deployment/selenium-node-chrome -n selenium-grid --timeout=120s
 
           echo "Waiting for Firefox nodes..."
-          kubectl rollout status deployment/grid-node-firefox -n selenium-grid --timeout=120s
+          kubectl rollout status deployment/selenium-node-firefox -n selenium-grid --timeout=120s
 
           echo "Waiting for Edge nodes..."
-          kubectl rollout status deployment/grid-node-edge -n selenium-grid --timeout=120s
+          kubectl rollout status deployment/selenium-node-edge -n selenium-grid --timeout=120s
 
           echo "All pods are ready:"
           kubectl get pods -n selenium-grid -o wide
@@ -230,7 +230,7 @@ jobs:
       # --------------------------------------------------------
       - name: Port-forward Selenium Hub to localhost:4444
         run: |
-          kubectl port-forward service/grid-hub 4444:4444 -n selenium-grid &
+          kubectl port-forward service/selenium-hub 4444:4444 -n selenium-grid &
           kubectl port-forward service/prometheus 9090:9090 -n monitoring &
           kubectl port-forward service/grafana 3000:3000 -n monitoring &
           sleep 5
@@ -309,12 +309,12 @@ jobs:
             echo "time,chrome_replicas,firefox_replicas,edge_replicas,chrome_cpu,firefox_cpu,edge_cpu" > /tmp/hpa_samples.csv
             while true; do
               TS=$(date '+%H:%M:%S')
-              CR=$(kubectl get hpa hpa-grid-node-chrome -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo 0)
-              FR=$(kubectl get hpa hpa-grid-node-firefox -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo 0)
-              ER=$(kubectl get hpa hpa-grid-node-edge -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo 0)
-              CM=$(kubectl get hpa hpa-grid-node-chrome -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo 0)
-              FM=$(kubectl get hpa hpa-grid-node-firefox -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo 0)
-              EM=$(kubectl get hpa hpa-grid-node-edge -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo 0)
+              CR=$(kubectl get hpa selenium-hpa-chrome -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo 0)
+              FR=$(kubectl get hpa selenium-hpa-firefox -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo 0)
+              ER=$(kubectl get hpa selenium-hpa-edge -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo 0)
+              CM=$(kubectl get hpa selenium-hpa-chrome -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo 0)
+              FM=$(kubectl get hpa selenium-hpa-firefox -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo 0)
+              EM=$(kubectl get hpa selenium-hpa-edge -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo 0)
               echo "$TS,$CR,$FR,$ER,$CM,$FM,$EM" >> /tmp/hpa_samples.csv
               sleep 15
             done
@@ -353,7 +353,7 @@ jobs:
           echo "=== Prometheus available metrics sample ==="
           curl -s "http://localhost:9090/api/v1/label/__name__/values" | python3 -c "import sys,json; d=json.load(sys.stdin); [print(m) for m in d['data'] if 'hpa' in m or 'kube_horizontal' in m]" || true
           echo "=== Selenium Hub Logs ==="
-          kubectl logs deployment/grid-hub -n selenium-grid --tail=50 || true
+          kubectl logs deployment/selenium-hub -n selenium-grid --tail=50 || true
 
       - name: Capture Grafana dashboard screenshots
         if: always()
@@ -392,13 +392,13 @@ jobs:
           PODS_AFTER=$(kubectl get pods -n selenium-grid --no-headers 2>/dev/null || echo "cluster deleted")
           HPA_AFTER=$(kubectl get hpa -n selenium-grid --no-headers 2>/dev/null || echo "cluster deleted")
 
-          CHROME_REPLICAS=$(kubectl get hpa hpa-grid-node-chrome -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
-          FIREFOX_REPLICAS=$(kubectl get hpa hpa-grid-node-firefox -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
-          EDGE_REPLICAS=$(kubectl get hpa hpa-grid-node-edge -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
+          CHROME_REPLICAS=$(kubectl get hpa selenium-hpa-chrome -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
+          FIREFOX_REPLICAS=$(kubectl get hpa selenium-hpa-firefox -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
+          EDGE_REPLICAS=$(kubectl get hpa selenium-hpa-edge -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
 
-          CHROME_CPU=$(kubectl get hpa hpa-grid-node-chrome -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
-          FIREFOX_CPU=$(kubectl get hpa hpa-grid-node-firefox -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
-          EDGE_CPU=$(kubectl get hpa hpa-grid-node-edge -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
+          CHROME_CPU=$(kubectl get hpa selenium-hpa-chrome -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
+          FIREFOX_CPU=$(kubectl get hpa selenium-hpa-firefox -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
+          EDGE_CPU=$(kubectl get hpa selenium-hpa-edge -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
 
           RUN_TIME=$(date '+%Y-%m-%d %H:%M:%S UTC')
 
@@ -407,14 +407,14 @@ jobs:
           sleep 30
 
           # Get HPA data directly from kubectl (reliable)
-          PROM_HPA_CHROME=$(kubectl get hpa hpa-grid-node-chrome -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
-          PROM_HPA_FIREFOX=$(kubectl get hpa hpa-grid-node-firefox -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
-          PROM_HPA_EDGE=$(kubectl get hpa hpa-grid-node-edge -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
+          PROM_HPA_CHROME=$(kubectl get hpa selenium-hpa-chrome -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
+          PROM_HPA_FIREFOX=$(kubectl get hpa selenium-hpa-firefox -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
+          PROM_HPA_EDGE=$(kubectl get hpa selenium-hpa-edge -n selenium-grid -o jsonpath='{.status.currentReplicas}' 2>/dev/null || echo "N/A")
 
           # Get CPU utilization from HPA status
-          CHROME_HPA_CPU=$(kubectl get hpa hpa-grid-node-chrome -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
-          FIREFOX_HPA_CPU=$(kubectl get hpa hpa-grid-node-firefox -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
-          EDGE_HPA_CPU=$(kubectl get hpa hpa-grid-node-edge -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
+          CHROME_HPA_CPU=$(kubectl get hpa selenium-hpa-chrome -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
+          FIREFOX_HPA_CPU=$(kubectl get hpa selenium-hpa-firefox -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
+          EDGE_HPA_CPU=$(kubectl get hpa selenium-hpa-edge -n selenium-grid -o jsonpath='{.status.currentMetrics[0].resource.current.averageUtilization}' 2>/dev/null || echo "N/A")
 
           # Get Prometheus targets status
           PROM_TARGETS=$(curl -s http://localhost:9090/api/v1/targets 2>/dev/null || echo '{}')

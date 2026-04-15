@@ -1,18 +1,16 @@
 # ============================================================
 # HPA — Edge Browser Nodes
 # ============================================================
-# FIXED: Previously had NO behavior section, which meant
-# Kubernetes used defaults (5 min stabilization for scale-down).
-# Edge pods would linger 5 minutes after tests finished.
-# Now matches Chrome/Firefox: 30s scale-down stabilization.
+# Same CPU-based scaling strategy as Chrome.
+# See hpa-chrome.yaml for detailed explanation.
 # ============================================================
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: hpa-grid-node-edge
+  name: selenium-hpa-edge
   namespace: selenium-grid
   labels:
-    app.kubernetes.io/name: hpa-grid-node-edge
+    app.kubernetes.io/name: selenium-hpa-edge
     app.kubernetes.io/component: autoscaler
     app.kubernetes.io/part-of: selenium-grid
     app.kubernetes.io/managed-by: argocd
@@ -23,7 +21,7 @@ spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: grid-node-edge
+    name: selenium-node-edge
   minReplicas: 1
   maxReplicas: 5
   metrics:
