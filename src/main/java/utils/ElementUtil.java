@@ -826,7 +826,7 @@ public class ElementUtil{
             WebDriverWait wait =
                     new WebDriverWait(driver, Duration.ofSeconds(timeoutInSeconds));
             wait.until(ExpectedConditions.urlContains(partialUrl));
-            return driver.getCurrentUrl();   // ✅ FIXED
+            return driver.getCurrentUrl();   // FIXED
         } catch (TimeoutException exception) {
             return null;
         }
@@ -862,7 +862,7 @@ public class ElementUtil{
             WebDriverWait wait =
                     new WebDriverWait(driver, Duration.ofSeconds(timeoutInSeconds));
             wait.until(ExpectedConditions.urlToBe(expectedUrl));
-            return driver.getCurrentUrl();   // ✅ FIXED
+            return driver.getCurrentUrl();   // FIXED
         } catch (TimeoutException exception) {
             return null;
         }
